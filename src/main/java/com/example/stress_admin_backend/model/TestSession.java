@@ -67,4 +67,7 @@ public class TestSession {
     
     @Schema(description = "Map of use case ID to its report URL", example = "{\"uc_1\": \"/reports/report_1/index.html\", \"uc_2\": \"/reports/report_2/index.html\"}")
     private Map<String, String> useCaseReportUrls;
+    
+    @Schema(description = "ID of the user who created this test session", example = "507f1f77bcf86cd799439011")
+    private String userId;
 }

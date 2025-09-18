@@ -8,6 +8,8 @@ import com.example.stress_admin_backend.repository.TestConfigurationRepository;
 import com.example.stress_admin_backend.service.FileStorageService;
 import com.example.stress_admin_backend.service.JMeterService;
 import com.example.stress_admin_backend.service.ConcurrentTestService;
+import com.example.stress_admin_backend.service.JmxModificationService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -20,8 +22,11 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.core.io.Resource;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import com.example.stress_admin_backend.security.CustomUserPrincipal;
 
 import java.net.URI;
 import java.time.LocalDateTime;
@@ -38,15 +43,26 @@ public class UseCaseController {
     private final FileStorageService storage;
     private final JMeterService jMeterService;
     private final ConcurrentTestService concurrentTestService;
+    private final JmxModificationService jmxModificationService;
 
     public UseCaseController(UseCaseRepository repo, TestConfigurationRepository configRepo, 
                            FileStorageService storage, JMeterService jMeterService, 
-                           ConcurrentTestService concurrentTestService) {
+                           ConcurrentTestService concurrentTestService, JmxModificationService jmxModificationService) {
         this.repo = repo;
         this.configRepo = configRepo;
         this.storage = storage;
         this.jMeterService = jMeterService;
         this.concurrentTestService = concurrentTestService;
+        this.jmxModificationService = jmxModificationService;
+    }
+
+    private String getCurrentUserId() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.getPrincipal() instanceof CustomUserPrincipal) {
+            CustomUserPrincipal userPrincipal = (CustomUserPrincipal) authentication.getPrincipal();
+            return userPrincipal.getUser().getId();
+        }
+        throw new RuntimeException("User not authenticated");
     }
 
     @Operation(summary = "Get all use cases", description = "Retrieve a list of all stress testing use cases")
@@ -58,7 +74,8 @@ public class UseCaseController {
     })
     @GetMapping
     public List<UseCase> list() {
-        return repo.findAll();
+        String userId = getCurrentUserId();
+        return repo.findByUserId(userId);
     }
 
     @Operation(summary = "Create a new use case", description = "Create a new stress testing use case with JMX and CSV files")
@@ -80,8 +97,11 @@ public class UseCaseController {
             @Parameter(description = "JMeter test plan file (.jmx)", required = true)
             @RequestPart("jmxFile") MultipartFile jmxFile,
             
-            @Parameter(description = "Test data file (.csv)", required = true)
-            @RequestPart("csvFile") MultipartFile csvFile
+            @Parameter(description = "Test data file (.csv)", required = false)
+            @RequestPart(value = "csvFile", required = false) MultipartFile csvFile,
+            
+            @Parameter(description = "Whether this use case requires a CSV file", required = false)
+            @RequestParam(value = "requiresCsv", required = false, defaultValue = "false") String requiresCsv
     ) {
         try {
             // Validate inputs
@@ -93,25 +113,27 @@ public class UseCaseController {
                 return ResponseEntity.badRequest().body(Map.of("error", "JMX file is required"));
             }
             
-            if (csvFile == null || csvFile.isEmpty()) {
-                return ResponseEntity.badRequest().body(Map.of("error", "CSV file is required"));
+            boolean requiresCsvBool = Boolean.parseBoolean(requiresCsv);
+            if (requiresCsvBool && (csvFile == null || csvFile.isEmpty())) {
+                return ResponseEntity.badRequest().body(Map.of("error", "CSV file is required for this use case"));
             }
             
             // Validate file extensions
             String jmxFileName = jmxFile.getOriginalFilename();
-            String csvFileName = csvFile.getOriginalFilename();
+            String csvFileName = csvFile != null ? csvFile.getOriginalFilename() : null;
             
             if (jmxFileName == null || !jmxFileName.toLowerCase().endsWith(".jmx")) {
                 return ResponseEntity.badRequest().body(Map.of("error", "JMX file must have .jmx extension"));
             }
             
-            if (csvFileName == null || !csvFileName.toLowerCase().endsWith(".csv")) {
+            if (requiresCsvBool && (csvFileName == null || !csvFileName.toLowerCase().endsWith(".csv"))) {
                 return ResponseEntity.badRequest().body(Map.of("error", "CSV file must have .csv extension"));
             }
             
             String jmxPath = storage.storeJmx(jmxFile);
-            String csvPath = storage.storeCsv(csvFile);
+            String csvPath = csvFile != null ? storage.storeCsv(csvFile) : null;
 
+            String userId = getCurrentUserId();
             UseCase uc = UseCase.builder()
                     .name(name.trim())
                     .description(description != null ? description.trim() : "")
@@ -119,6 +141,8 @@ public class UseCaseController {
                     .csvPath(csvPath)
                     .status("IDLE")
                     .userCount(50) // Set default user count
+                    .requiresCsv(requiresCsvBool)
+                    .userId(userId)
                     .build();
 
             UseCase saved = repo.save(uc);
@@ -174,6 +198,87 @@ public class UseCaseController {
             @Parameter(description = "Use case ID", required = true, example = "123")
             @PathVariable String id) {
         return repo.findById(id).map(ResponseEntity::ok).orElse(ResponseEntity.notFound().build());
+    }
+
+    @Operation(summary = "Update use case", description = "Update an existing use case's name, description, and configurations")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "200", description = "Use case updated successfully",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = UseCase.class))),
+            @ApiResponse(responseCode = "400", description = "Invalid input data"),
+            @ApiResponse(responseCode = "404", description = "Use case not found"),
+            @ApiResponse(responseCode = "500", description = "Internal server error")
+    })
+    @PutMapping("/{id}")
+    public ResponseEntity<?> update(
+            @Parameter(description = "Use case ID", required = true, example = "123")
+            @PathVariable String id,
+            
+            @Parameter(description = "Updated use case data", required = true)
+            @RequestBody Map<String, Object> updateData) {
+        
+        try {
+            Optional<UseCase> useCaseOpt = repo.findById(id);
+            if (useCaseOpt.isEmpty()) {
+                return ResponseEntity.notFound().build();
+            }
+            
+            UseCase useCase = useCaseOpt.get();
+            
+            // Update name if provided
+            if (updateData.containsKey("name")) {
+                String name = (String) updateData.get("name");
+                if (name != null && !name.trim().isEmpty()) {
+                    useCase.setName(name.trim());
+                } else {
+                    return ResponseEntity.badRequest().body(Map.of("error", "Name cannot be empty"));
+                }
+            }
+            
+            // Update description if provided
+            if (updateData.containsKey("description")) {
+                String description = (String) updateData.get("description");
+                useCase.setDescription(description != null ? description.trim() : "");
+            }
+            
+            // Update thread group configuration if provided
+            if (updateData.containsKey("threadGroupConfig")) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> threadGroupConfig = (Map<String, Object>) updateData.get("threadGroupConfig");
+                if (threadGroupConfig != null && !threadGroupConfig.isEmpty()) {
+                    // Convert to JSON string and store in dedicated field
+                    try {
+                        ObjectMapper mapper = new ObjectMapper();
+                        useCase.setThreadGroupConfig(mapper.writeValueAsString(threadGroupConfig));
+                    } catch (Exception e) {
+                        System.err.println("Error converting thread group config to JSON: " + e.getMessage());
+                        useCase.setThreadGroupConfig(threadGroupConfig.toString());
+                    }
+                }
+            }
+            
+            // Update server configuration if provided
+            if (updateData.containsKey("serverConfig")) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> serverConfig = (Map<String, Object>) updateData.get("serverConfig");
+                if (serverConfig != null && !serverConfig.isEmpty()) {
+                    // Convert to JSON string and store in dedicated field
+                    try {
+                        ObjectMapper mapper = new ObjectMapper();
+                        useCase.setServerConfig(mapper.writeValueAsString(serverConfig));
+                    } catch (Exception e) {
+                        System.err.println("Error converting server config to JSON: " + e.getMessage());
+                        useCase.setServerConfig(serverConfig.toString());
+                    }
+                }
+            }
+            
+            UseCase updatedUseCase = repo.save(useCase);
+            return ResponseEntity.ok(updatedUseCase);
+            
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of("error", "Failed to update use case: " + e.getMessage()));
+        }
     }
 
     @Operation(summary = "Get test execution status", description = "Check the current status of a test execution")
@@ -238,6 +343,7 @@ public class UseCaseController {
                 return ResponseEntity.badRequest().body(Map.of("error", "Users must be between 1 and 10000"));
             }
             
+            String userId = getCurrentUserId();
             UseCase useCase = UseCase.builder()
                     .name(name.trim())
                     .description(description != null ? description.trim() : "")
@@ -246,6 +352,8 @@ public class UseCaseController {
                     .status("IDLE")
                     .userCount(users)
                     .priority(priority)
+                    .requiresCsv(false) // Default to CSV optional
+                    .userId(userId)
                     .build();
             
             UseCase saved = repo.save(useCase);
@@ -275,6 +383,7 @@ public class UseCaseController {
             }
             
             List<UseCase> createdUseCases = new ArrayList<>();
+            String userId = getCurrentUserId();
             
             for (UseCaseCreationRequest request : requests) {
                 Optional<TestConfiguration> configOpt = configRepo.findById(request.getConfigId());
@@ -299,6 +408,8 @@ public class UseCaseController {
                         .status("IDLE")
                         .userCount(request.getUsers())
                         .priority(request.getPriority() != null ? request.getPriority() : 1)
+                        .requiresCsv(false) // Default to CSV optional
+                        .userId(userId)
                         .build();
                 
                 UseCase saved = repo.save(useCase);
@@ -339,6 +450,7 @@ public class UseCaseController {
             // Create use cases first
             List<UseCase> createdUseCases = new ArrayList<>();
             Map<String, Integer> userCounts = new HashMap<>();
+            String userId = getCurrentUserId();
             
             for (UseCaseCreationRequest request : requests) {
                 Optional<TestConfiguration> configOpt = configRepo.findById(request.getConfigId());
@@ -363,6 +475,8 @@ public class UseCaseController {
                         .status("IDLE")
                         .userCount(request.getUsers())
                         .priority(request.getPriority() != null ? request.getPriority() : 1)
+                        .requiresCsv(false) // Default to CSV optional
+                        .userId(userId)
                         .build();
                 
                 UseCase saved = repo.save(useCase);
@@ -379,7 +493,8 @@ public class UseCaseController {
                 sessionName.trim(),
                 sessionDescription != null ? sessionDescription.trim() : "",
                 useCaseIds,
-                userCounts
+                userCounts,
+                userId
             );
             
             // Start the concurrent test
@@ -445,7 +560,7 @@ public class UseCaseController {
             @ApiResponse(responseCode = "500", description = "Failed to download JMX file")
     })
     @GetMapping("/{id}/download/jmx")
-    public ResponseEntity<Resource> downloadJmx(
+    public ResponseEntity<byte[]> downloadJmx(
             @Parameter(description = "Use case ID", required = true, example = "123")
             @PathVariable String id) {
         
@@ -456,9 +571,20 @@ public class UseCaseController {
         
         UseCase useCase = useCaseOpt.get();
         try {
+            // Check if the original JMX file exists
             Resource resource = storage.loadJmxAsResource(useCase.getJmxPath());
             if (!resource.exists()) {
                 return ResponseEntity.notFound().build();
+            }
+            
+            // Modify JMX content with configuration if available
+            String modifiedJmxContent;
+            if ((useCase.getThreadGroupConfig() != null && !useCase.getThreadGroupConfig().isEmpty()) ||
+                (useCase.getServerConfig() != null && !useCase.getServerConfig().isEmpty())) {
+                modifiedJmxContent = jmxModificationService.modifyJmxWithConfiguration(useCase.getJmxPath(), useCase);
+            } else {
+                // Read original content if no configuration to apply
+                modifiedJmxContent = new String(resource.getInputStream().readAllBytes());
             }
             
             String filename = useCase.getJmxPath().substring(useCase.getJmxPath().lastIndexOf("/") + 1);
@@ -466,9 +592,11 @@ public class UseCaseController {
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
                     .header(HttpHeaders.CONTENT_TYPE, "application/xml")
-                    .body(resource);
+                    .body(modifiedJmxContent.getBytes());
                     
         } catch (Exception e) {
+            System.err.println("Error downloading JMX file: " + e.getMessage());
+            e.printStackTrace();
             return ResponseEntity.internalServerError().build();
         }
     }

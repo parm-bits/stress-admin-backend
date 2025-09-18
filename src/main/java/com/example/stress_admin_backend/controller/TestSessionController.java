@@ -11,7 +11,10 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+import com.example.stress_admin_backend.security.CustomUserPrincipal;
 
 import java.util.HashMap;
 import java.util.List;
@@ -29,6 +32,15 @@ public class TestSessionController {
         this.concurrentTestService = concurrentTestService;
     }
 
+    private String getCurrentUserId() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.getPrincipal() instanceof CustomUserPrincipal) {
+            CustomUserPrincipal userPrincipal = (CustomUserPrincipal) authentication.getPrincipal();
+            return userPrincipal.getUser().getId();
+        }
+        throw new RuntimeException("User not authenticated");
+    }
+
     @Operation(summary = "Get all test sessions", description = "Retrieve a list of all test sessions")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Successfully retrieved test sessions",
@@ -38,7 +50,8 @@ public class TestSessionController {
     })
     @GetMapping
     public List<TestSession> list() {
-        return concurrentTestService.getAllSessions();
+        String userId = getCurrentUserId();
+        return concurrentTestService.getSessionsByUserId(userId);
     }
 
     @Operation(summary = "Get running test sessions", description = "Retrieve currently running test sessions")
@@ -96,11 +109,13 @@ public class TestSessionController {
                 }
             }
             
+            String userId = getCurrentUserId();
             TestSession session = concurrentTestService.createTestSession(
                 name.trim(), 
                 description != null ? description.trim() : "", 
                 useCaseIds, 
-                userCounts
+                userCounts,
+                userId
             );
             
             return ResponseEntity.ok(session);

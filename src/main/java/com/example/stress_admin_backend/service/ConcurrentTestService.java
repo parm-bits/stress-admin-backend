@@ -165,7 +165,8 @@ public class ConcurrentTestService {
 
     public TestSession createTestSession(String name, String description, 
                                        List<String> useCaseIds, 
-                                       Map<String, Integer> userCounts) {
+                                       Map<String, Integer> userCounts,
+                                       String userId) {
         
         // Validate use cases exist
         List<UseCase> useCases = useCaseRepository.findAllById(useCaseIds);
@@ -190,6 +191,7 @@ public class ConcurrentTestService {
             .failureCount(0)
             .useCaseStatuses(new HashMap<>())
             .useCaseReportUrls(new HashMap<>())
+            .userId(userId)
             .build();
         
         return testSessionRepository.save(session);
@@ -205,6 +207,10 @@ public class ConcurrentTestService {
 
     public List<TestSession> getAllSessions() {
         return testSessionRepository.findAll();
+    }
+    
+    public List<TestSession> getSessionsByUserId(String userId) {
+        return testSessionRepository.findByUserId(userId);
     }
 
     public boolean stopSession(String sessionId) {

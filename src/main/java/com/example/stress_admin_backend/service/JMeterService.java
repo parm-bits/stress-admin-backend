@@ -17,15 +17,23 @@ public class JMeterService {
 
     private final FileStorageService storage;
     private final UseCaseRepository repo;
+    private final JmxModificationService jmxModificationService;
 
     @Value("${jmeter.path}")
     private String jmeterPath;
 
+    @Value("${jmeter.remote.enabled:false}")
+    private boolean remoteEnabled;
+
+    @Value("${jmeter.remote.host:3.128.170.155}")
+    private String remoteHost;
+
     private final Map<String, Process> runningProcesses = new HashMap<>();
 
-    public JMeterService(FileStorageService storage, UseCaseRepository repo) {
+    public JMeterService(FileStorageService storage, UseCaseRepository repo, JmxModificationService jmxModificationService) {
         this.storage = storage;
         this.repo = repo;
+        this.jmxModificationService = jmxModificationService;
     }
 
     @Async
@@ -39,6 +47,9 @@ public class JMeterService {
         UseCase uc = opt.get();
         uc.setStatus("RUNNING");
         uc.setLastRunAt(LocalDateTime.now());
+        uc.setTestStartedAt(LocalDateTime.now());
+        uc.setTestCompletedAt(null); // Clear previous completion time
+        uc.setTestDurationSeconds(null); // Clear previous duration
         uc.setUserCount(users);
         repo.save(uc);
         
@@ -54,6 +65,7 @@ public class JMeterService {
             return CompletableFuture.completedFuture(null);
         }
 
+        String modifiedJmxPath = null;
         try {
             String jmx = uc.getJmxPath();
             String csv = uc.getCsvPath();
@@ -85,14 +97,23 @@ public class JMeterService {
             if (Files.exists(reportDir)) deleteRecursive(reportDir);
             Files.createDirectories(reportDir);
 
+            // Create modified JMX file with updated configurations
+            modifiedJmxPath = createModifiedJmxFile(uc, stamp);
+            
             List<String> cmd = buildJMeterCommand(
                     "-n",
-                    "-t", jmx,
+                    "-t", modifiedJmxPath,
                     "-l", resultJtl.toString(),
                     "-Jusers=" + users,
                     "-JcsvPath=" + csv,
                     "-e",
-                    "-o", reportDir.toString()
+                    "-o", reportDir.toString(),
+                    "-Jjmeter.save.saveservice.output_format=csv",
+                    "-Jjmeter.save.saveservice.response_data=false",
+                    "-Jjmeter.save.saveservice.samplerData=false",
+                    "-Jjmeter.save.saveservice.response_data.on_error=false",
+                    "-Jjmeter.save.saveservice.autoflush=true",
+                    "-Jjmeter.save.saveservice.print_field_names=false"
             );
 
             // Log the command being executed
@@ -125,6 +146,16 @@ public class JMeterService {
             int exit = p.waitFor();
             System.out.println("JMeter process exited with code: " + exit);
             
+            // Calculate test duration
+            LocalDateTime testEndTime = LocalDateTime.now();
+            uc.setTestCompletedAt(testEndTime);
+            
+            if (uc.getTestStartedAt() != null) {
+                long durationSeconds = java.time.Duration.between(uc.getTestStartedAt(), testEndTime).getSeconds();
+                uc.setTestDurationSeconds(durationSeconds);
+                System.out.println("Test duration: " + durationSeconds + " seconds (" + formatDuration(durationSeconds) + ")");
+            }
+            
             if (exit == 0) {
                 String reportRel = "/reports/" + reportDir.getFileName().toString() + "/index.html";
                 uc.setLastReportUrl(reportRel);
@@ -138,13 +169,34 @@ public class JMeterService {
             uc.setLastRunAt(LocalDateTime.now());
             repo.save(uc);
             
+            // Clean up temporary modified JMX file if it was created
+            cleanupModifiedJmxFile(modifiedJmxPath, uc.getJmxPath());
+            
             // Remove from running processes
             runningProcesses.remove(useCaseId);
 
         } catch (Exception e) {
             uc.setStatus("FAILED");
             uc.setLastRunAt(LocalDateTime.now());
+            
+            // Calculate test duration even for failed tests
+            LocalDateTime testEndTime = LocalDateTime.now();
+            uc.setTestCompletedAt(testEndTime);
+            
+            if (uc.getTestStartedAt() != null) {
+                long durationSeconds = java.time.Duration.between(uc.getTestStartedAt(), testEndTime).getSeconds();
+                uc.setTestDurationSeconds(durationSeconds);
+                System.out.println("Test failed after: " + durationSeconds + " seconds (" + formatDuration(durationSeconds) + ")");
+            }
+            
             repo.save(uc);
+            
+            // Clean up temporary modified JMX file if it was created
+            try {
+                cleanupModifiedJmxFile(modifiedJmxPath, uc.getJmxPath());
+            } catch (Exception cleanupError) {
+                System.err.println("Error cleaning up modified JMX file: " + cleanupError.getMessage());
+            }
             
             // Log detailed error information
             System.err.println("JMeter test failed for use case: " + uc.getName() + " (ID: " + useCaseId + ")");
@@ -172,6 +224,81 @@ public class JMeterService {
         }
 
         return CompletableFuture.completedFuture(null);
+    }
+
+    /**
+     * Creates a modified JMX file with the updated configurations from the use case
+     */
+    private String createModifiedJmxFile(UseCase useCase, String stamp) throws IOException {
+        String originalJmxPath = useCase.getJmxPath();
+        
+        // Check if we need to apply modifications
+        boolean hasThreadGroupConfig = useCase.getThreadGroupConfig() != null && !useCase.getThreadGroupConfig().isEmpty();
+        boolean hasServerConfig = useCase.getServerConfig() != null && !useCase.getServerConfig().isEmpty();
+        
+        if (!hasThreadGroupConfig && !hasServerConfig) {
+            // No modifications needed, return original path
+            System.out.println("No configurations to apply, using original JMX file: " + originalJmxPath);
+            return originalJmxPath;
+        }
+        
+        // Create modified JMX file
+        String modifiedJmxPath = storage.getResultsDir().resolve("modified_" + useCase.getId() + "_" + stamp + ".jmx").toString();
+        
+        try {
+            // Apply modifications using JmxModificationService
+            String modifiedJmxContent = jmxModificationService.modifyJmxWithConfiguration(originalJmxPath, useCase);
+            
+            // Write modified content to new file
+            Files.write(Paths.get(modifiedJmxPath), modifiedJmxContent.getBytes());
+            
+            System.out.println("Created modified JMX file: " + modifiedJmxPath);
+            System.out.println("Applied thread group config: " + hasThreadGroupConfig);
+            System.out.println("Applied server config: " + hasServerConfig);
+            
+            return modifiedJmxPath;
+            
+        } catch (Exception e) {
+            System.err.println("Error creating modified JMX file: " + e.getMessage());
+            e.printStackTrace();
+            // Fallback to original file if modification fails
+            return originalJmxPath;
+        }
+    }
+
+    /**
+     * Cleans up temporary modified JMX file if it was created
+     */
+    private void cleanupModifiedJmxFile(String modifiedJmxPath, String originalJmxPath) {
+        if (modifiedJmxPath != null && !modifiedJmxPath.equals(originalJmxPath)) {
+            try {
+                Path modifiedFile = Paths.get(modifiedJmxPath);
+                if (Files.exists(modifiedFile)) {
+                    Files.delete(modifiedFile);
+                    System.out.println("Cleaned up temporary modified JMX file: " + modifiedJmxPath);
+                }
+            } catch (IOException e) {
+                System.err.println("Error cleaning up modified JMX file: " + e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Formats duration in seconds to human-readable format (e.g., "5m 30s", "2h 15m")
+     */
+    private String formatDuration(long durationSeconds) {
+        if (durationSeconds < 60) {
+            return durationSeconds + "s";
+        } else if (durationSeconds < 3600) {
+            long minutes = durationSeconds / 60;
+            long seconds = durationSeconds % 60;
+            return minutes + "m " + seconds + "s";
+        } else {
+            long hours = durationSeconds / 3600;
+            long minutes = (durationSeconds % 3600) / 60;
+            long seconds = durationSeconds % 60;
+            return hours + "h " + minutes + "m " + seconds + "s";
+        }
     }
 
     public void stopTest(String useCaseId) {
@@ -210,6 +337,14 @@ public class JMeterService {
             cmd.add(jmeterPath);
             cmd.addAll(Arrays.asList(args));
         }
+        
+        // Add remote execution if enabled
+        if (remoteEnabled) {
+            cmd.add("-r");  // Run remote
+            cmd.add("-R");  // Remote hosts
+            cmd.add(remoteHost);
+        }
+        
         return cmd;
     }
 

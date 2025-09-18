@@ -37,6 +37,15 @@ public class UseCase {
     @Schema(description = "Timestamp of the last test execution", example = "2024-01-15T10:30:00")
     private LocalDateTime lastRunAt;
     
+    @Schema(description = "Timestamp when the test started", example = "2024-01-15T10:30:00")
+    private LocalDateTime testStartedAt;
+    
+    @Schema(description = "Timestamp when the test completed", example = "2024-01-15T10:35:00")
+    private LocalDateTime testCompletedAt;
+    
+    @Schema(description = "Duration of the last test execution in seconds", example = "300")
+    private Long testDurationSeconds;
+    
     @Schema(description = "Current status of the use case", 
             example = "IDLE", 
             allowableValues = {"IDLE", "RUNNING", "SUCCESS", "FAILED"})
@@ -50,4 +59,16 @@ public class UseCase {
     
     @Schema(description = "Priority of this use case in concurrent execution (1=highest)", example = "1")
     private Integer priority;
+    
+    @Schema(description = "Thread group configuration as JSON string", example = "{\"numberOfThreads\":10,\"rampUpPeriod\":60}")
+    private String threadGroupConfig;
+    
+    @Schema(description = "Server configuration as JSON string", example = "{\"protocol\":\"http\",\"server\":\"localhost\",\"port\":\"8080\"}")
+    private String serverConfig;
+    
+    @Schema(description = "Whether this use case requires a CSV data file", example = "true")
+    private Boolean requiresCsv;
+    
+    @Schema(description = "ID of the user who created this use case", example = "507f1f77bcf86cd799439011")
+    private String userId;
 }

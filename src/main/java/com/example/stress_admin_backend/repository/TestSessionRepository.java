@@ -14,4 +14,6 @@ public interface TestSessionRepository extends MongoRepository<TestSession, Stri
     List<TestSession> findByNameContainingIgnoreCase(String name);
     
     List<TestSession> findByCreatedAtBetween(java.time.LocalDateTime start, java.time.LocalDateTime end);
+    
+    List<TestSession> findByUserId(String userId);
 }
