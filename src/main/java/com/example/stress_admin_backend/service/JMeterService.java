@@ -20,6 +20,8 @@ public class JMeterService {
     private final JmxModificationService jmxModificationService;
 
     @Value("${jmeter.path}")
+    private String defaultJmeterPath;
+    
     private String jmeterPath;
 
     @Value("${jmeter.remote.enabled:false}")
@@ -37,6 +39,15 @@ public class JMeterService {
         this.storage = storage;
         this.repo = repo;
         this.jmxModificationService = jmxModificationService;
+        this.jmeterPath = defaultJmeterPath; // Initialize with default value
+    }
+    
+    /**
+     * Updates the JMeter path (called from SettingsController)
+     */
+    public void updateJmeterPath(String newPath) {
+        this.jmeterPath = newPath;
+        System.out.println("JMeter path updated to: " + newPath);
     }
 
     @Async

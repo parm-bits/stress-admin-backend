@@ -11,6 +11,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import com.example.stress_admin_backend.service.JMeterService;
+
 import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
@@ -22,6 +24,12 @@ public class SettingsController {
 
     @Value("${jmeter.path}")
     private String jmeterPath;
+    
+    private final JMeterService jmeterService;
+    
+    public SettingsController(JMeterService jmeterService) {
+        this.jmeterService = jmeterService;
+    }
 
     @Operation(summary = "Get application settings", description = "Retrieve current application settings including JMeter path")
     @ApiResponses(value = {
@@ -70,6 +78,9 @@ public class SettingsController {
             
             // Update the JMeter path (in a real application, you'd persist this to a database or config file)
             this.jmeterPath = newJmeterPath.trim();
+            
+            // Update the JMeterService with the new path
+            jmeterService.updateJmeterPath(newJmeterPath.trim());
             
             return ResponseEntity.ok(Map.of("message", "Settings updated successfully", "jmeterPath", this.jmeterPath));
             

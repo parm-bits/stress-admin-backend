@@ -30,7 +30,6 @@ EXPOSE 8082
 ENV JMETER_PATH=/opt/jmeter/bin/jmeter.sh
 ENV STORAGE_PATH=/var/stress-admin-storage
 ENV PORT=8082
-ENV SPRING_PROFILES_ACTIVE=prod
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
