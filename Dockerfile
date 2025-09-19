@@ -27,7 +27,7 @@ COPY target/stress-admin-backend-0.0.1-SNAPSHOT.jar app.jar
 EXPOSE 8082
 
 # Set environment variables
-ENV JMETER_PATH=/opt/jmeter/bin/ApacheJMeter.jar
+ENV JMETER_PATH=/opt/jmeter/bin/jmeter.sh
 ENV STORAGE_PATH=/var/stress-admin-storage
 ENV PORT=8082
 ENV SPRING_PROFILES_ACTIVE=prod

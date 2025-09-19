@@ -27,7 +27,7 @@ public class SettingsController {
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Settings retrieved successfully",
                     content = @Content(mediaType = "application/json",
-                            examples = @ExampleObject(value = "{\"jmeterPath\":\"C:/apache-jmeter-5.6.3/bin/ApacheJMeter.jar\"}")))
+                            examples = @ExampleObject(value = "{\"jmeterPath\":\"/opt/jmeter/bin/jmeter.sh\"}")))
     })
     @GetMapping
     public ResponseEntity<Map<String, Object>> getSettings() {
@@ -56,14 +56,16 @@ public class SettingsController {
                 return ResponseEntity.badRequest().body(Map.of("error", "JMeter path is required"));
             }
             
-            // Validate that the JMeter JAR file exists
+            // Validate that the JMeter executable exists
             File jmeterFile = new File(newJmeterPath.trim());
             if (!jmeterFile.exists()) {
-                return ResponseEntity.badRequest().body(Map.of("error", "JMeter JAR file not found at the specified path"));
+                return ResponseEntity.badRequest().body(Map.of("error", "JMeter executable not found at the specified path"));
             }
             
-            if (!jmeterFile.getName().toLowerCase().endsWith(".jar")) {
-                return ResponseEntity.badRequest().body(Map.of("error", "File must be a JAR file"));
+            // Accept both .jar files (Windows) and .sh scripts (Linux/Unix)
+            String fileName = jmeterFile.getName().toLowerCase();
+            if (!fileName.endsWith(".jar") && !fileName.endsWith(".sh") && !fileName.equals("jmeter")) {
+                return ResponseEntity.badRequest().body(Map.of("error", "File must be a JAR file (.jar), shell script (.sh), or jmeter executable"));
             }
             
             // Update the JMeter path (in a real application, you'd persist this to a database or config file)
@@ -101,8 +103,10 @@ public class SettingsController {
                 return ResponseEntity.ok(Map.of("valid", false, "message", "File does not exist"));
             }
             
-            if (!jmeterFile.getName().toLowerCase().endsWith(".jar")) {
-                return ResponseEntity.ok(Map.of("valid", false, "message", "File must be a JAR file"));
+            // Accept both .jar files (Windows) and .sh scripts (Linux/Unix)
+            String fileName = jmeterFile.getName().toLowerCase();
+            if (!fileName.endsWith(".jar") && !fileName.endsWith(".sh") && !fileName.equals("jmeter")) {
+                return ResponseEntity.ok(Map.of("valid", false, "message", "File must be a JAR file (.jar), shell script (.sh), or jmeter executable"));
             }
             
             return ResponseEntity.ok(Map.of("valid", true, "message", "JMeter path is valid"));

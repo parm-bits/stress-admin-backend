@@ -12,7 +12,9 @@
 Update `src/main/resources/application.properties`:
 ```properties
 # Update this path to your JMeter installation
-jmeter.path=C:/apache-jmeter-5.6.2/bin/jmeter.bat
+# Windows: jmeter.path=C:/apache-jmeter-5.6.2/bin/jmeter.bat
+# Linux/Ubuntu: jmeter.path=/opt/jmeter/bin/jmeter.sh
+jmeter.path=/opt/jmeter/bin/jmeter.sh
 ```
 
 ### 2. Start MongoDB
