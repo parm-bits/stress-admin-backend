@@ -15,7 +15,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
         String reportsPath = "file:" + baseDir + "/reports/";
         registry.addResourceHandler("/reports/**")
                 .addResourceLocations(reportsPath)
-                .setCachePeriod(0);
+                .setCachePeriod(0)
+                .resourceChain(true);
     }
 
     @Override

@@ -27,6 +27,9 @@ public class JMeterService {
 
     @Value("${jmeter.remote.host:3.128.170.155}")
     private String remoteHost;
+    
+    @Value("${jmeter.alternative.paths:}")
+    private String alternativePaths;
 
     private final Map<String, Process> runningProcesses = new HashMap<>();
 
@@ -55,13 +58,23 @@ public class JMeterService {
         
         System.out.println("Starting JMeter test for use case: " + uc.getName() + " (ID: " + useCaseId + ") with " + users + " users");
 
-        // Validate JMeter installation
-        Path jmeterExecutable = Paths.get(jmeterPath);
-        if (!Files.exists(jmeterExecutable)) {
+        // Validate JMeter installation and try alternative paths
+        Path jmeterExecutable = findValidJmeterPath();
+        if (jmeterExecutable == null) {
             uc.setStatus("FAILED");
             uc.setLastRunAt(LocalDateTime.now());
             repo.save(uc);
             System.err.println("JMeter executable not found at: " + jmeterPath);
+            System.err.println("Tried alternative paths but none were valid.");
+            return CompletableFuture.completedFuture(null);
+        }
+        
+        // Check if JMeter is executable
+        if (!Files.isReadable(jmeterExecutable)) {
+            uc.setStatus("FAILED");
+            uc.setLastRunAt(LocalDateTime.now());
+            repo.save(uc);
+            System.err.println("JMeter executable is not readable at: " + jmeterPath);
             return CompletableFuture.completedFuture(null);
         }
 
@@ -80,14 +93,16 @@ public class JMeterService {
                 return CompletableFuture.completedFuture(null);
             }
 
-            // Validate CSV file exists
-            Path csvFile = Paths.get(csv);
-            if (!Files.exists(csvFile)) {
-                uc.setStatus("FAILED");
-                uc.setLastRunAt(LocalDateTime.now());
-                repo.save(uc);
-                System.err.println("CSV file not found: " + csv);
-                return CompletableFuture.completedFuture(null);
+            // Validate CSV file exists (only if CSV is required)
+            if (csv != null && !csv.trim().isEmpty()) {
+                Path csvFile = Paths.get(csv);
+                if (!Files.exists(csvFile)) {
+                    uc.setStatus("FAILED");
+                    uc.setLastRunAt(LocalDateTime.now());
+                    repo.save(uc);
+                    System.err.println("CSV file not found: " + csv);
+                    return CompletableFuture.completedFuture(null);
+                }
             }
 
             String stamp = String.valueOf(System.currentTimeMillis());
@@ -105,7 +120,6 @@ public class JMeterService {
                     "-t", modifiedJmxPath,
                     "-l", resultJtl.toString(),
                     "-Jusers=" + users,
-                    "-JcsvPath=" + csv,
                     "-e",
                     "-o", reportDir.toString(),
                     "-Jjmeter.save.saveservice.output_format=csv",
@@ -115,6 +129,11 @@ public class JMeterService {
                     "-Jjmeter.save.saveservice.autoflush=true",
                     "-Jjmeter.save.saveservice.print_field_names=false"
             );
+            
+            // Add CSV path only if CSV file exists
+            if (csv != null && !csv.trim().isEmpty()) {
+                cmd.add("-JcsvPath=" + csv);
+            }
 
             // Log the command being executed
             System.out.println("Executing JMeter command: " + String.join(" ", cmd));
@@ -134,16 +153,28 @@ public class JMeterService {
             runningProcesses.put(useCaseId, p);
 
             Path log = storage.getResultsDir().resolve("jmeter_exec_" + useCaseId + "_" + stamp + ".log");
+            StringBuilder outputBuffer = new StringBuilder();
+            
             try (BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()));
                  BufferedWriter bw = Files.newBufferedWriter(log, StandardOpenOption.CREATE)) {
                 String line;
                 while ((line = br.readLine()) != null) {
                     bw.write(line);
                     bw.newLine();
+                    outputBuffer.append(line).append("\n");
+                    System.out.println("JMeter: " + line); // Log JMeter output to console
                 }
             }
 
-            int exit = p.waitFor();
+            // Wait for process with timeout (30 minutes)
+            boolean finished = p.waitFor(30, java.util.concurrent.TimeUnit.MINUTES);
+            int exit = finished ? p.exitValue() : -1;
+            
+            if (!finished) {
+                System.err.println("JMeter process timed out after 30 minutes");
+                p.destroyForcibly();
+                exit = -1;
+            }
             System.out.println("JMeter process exited with code: " + exit);
             
             // Calculate test duration
@@ -330,6 +361,7 @@ public class JMeterService {
         } else if (jmeterPath.toLowerCase().endsWith(".jar")) {
             // For JAR file execution, use java -jar
             cmd.add("java");
+            cmd.add("-Xmx1024m"); // Set JVM heap size
             cmd.add("-jar");
             cmd.add(jmeterPath);
             cmd.addAll(Arrays.asList(args));
@@ -354,5 +386,58 @@ public class JMeterService {
                 .sorted(Comparator.reverseOrder())
                 .map(Path::toFile)
                 .forEach(File::delete);
+    }
+    
+    /**
+     * Finds a valid JMeter executable path by trying the configured path and alternatives
+     */
+    private Path findValidJmeterPath() {
+        // Try the configured path first
+        Path configuredPath = Paths.get(jmeterPath);
+        if (Files.exists(configuredPath) && Files.isReadable(configuredPath)) {
+            System.out.println("Using configured JMeter path: " + jmeterPath);
+            return configuredPath;
+        }
+        
+        // Try alternative paths if configured
+        if (alternativePaths != null && !alternativePaths.trim().isEmpty()) {
+            String[] paths = alternativePaths.split(",");
+            for (String path : paths) {
+                path = path.trim();
+                if (!path.isEmpty()) {
+                    Path altPath = Paths.get(path);
+                    if (Files.exists(altPath) && Files.isReadable(altPath)) {
+                        System.out.println("Using alternative JMeter path: " + path);
+                        return altPath;
+                    }
+                }
+            }
+        }
+        
+        // Try common JMeter installation paths
+        String[] commonPaths = {
+            "/opt/jmeter/bin/ApacheJMeter.jar",
+            "/usr/local/jmeter/bin/ApacheJMeter.jar",
+            "/home/ubuntu/apache-jmeter-5.6.3/bin/ApacheJMeter.jar",
+            "/opt/apache-jmeter-5.6.3/bin/ApacheJMeter.jar",
+            "/usr/share/jmeter/bin/ApacheJMeter.jar"
+        };
+        
+        for (String commonPath : commonPaths) {
+            Path path = Paths.get(commonPath);
+            if (Files.exists(path) && Files.isReadable(path)) {
+                System.out.println("Using common JMeter path: " + commonPath);
+                return path;
+            }
+        }
+        
+        System.err.println("No valid JMeter executable found. Tried:");
+        System.err.println("  Configured: " + jmeterPath);
+        if (alternativePaths != null && !alternativePaths.trim().isEmpty()) {
+            System.err.println("  Alternatives: " + alternativePaths);
+        }
+        System.err.println("  Common paths: " + String.join(", ", commonPaths));
+        
+        return null;
     }
 }
