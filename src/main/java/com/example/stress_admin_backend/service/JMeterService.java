@@ -365,7 +365,13 @@ public class JMeterService {
             cmd.add("-jar");
             cmd.add(jmeterPath);
             cmd.addAll(Arrays.asList(args));
+        } else if (jmeterPath.toLowerCase().endsWith(".sh")) {
+            // For shell script execution on Linux/Unix
+            cmd.add("bash");
+            cmd.add(jmeterPath);
+            cmd.addAll(Arrays.asList(args));
         } else {
+            // Direct executable (like jmeter without .sh extension)
             cmd.add(jmeterPath);
             cmd.addAll(Arrays.asList(args));
         }
@@ -414,13 +420,17 @@ public class JMeterService {
             }
         }
         
-        // Try common JMeter installation paths
+        // Try common JMeter installation paths (Linux/Ubuntu uses .sh scripts)
         String[] commonPaths = {
-            "/opt/jmeter/bin/ApacheJMeter.jar",
-            "/usr/local/jmeter/bin/ApacheJMeter.jar",
-            "/home/ubuntu/apache-jmeter-5.6.3/bin/ApacheJMeter.jar",
-            "/opt/apache-jmeter-5.6.3/bin/ApacheJMeter.jar",
-            "/usr/share/jmeter/bin/ApacheJMeter.jar"
+            "/opt/jmeter/bin/jmeter.sh",
+            "/usr/local/jmeter/bin/jmeter.sh",
+            "/home/ubuntu/apache-jmeter-5.6.3/bin/jmeter.sh",
+            "/opt/apache-jmeter-5.6.3/bin/jmeter.sh",
+            "/usr/share/jmeter/bin/jmeter.sh",
+            "/opt/jmeter/bin/jmeter",
+            "/usr/local/jmeter/bin/jmeter",
+            "/home/ubuntu/apache-jmeter-5.6.3/bin/jmeter",
+            "/opt/apache-jmeter-5.6.3/bin/jmeter"
         };
         
         for (String commonPath : commonPaths) {

@@ -40,12 +40,16 @@ public class HealthController {
         Path jmeterPath = Paths.get(jmeterPathProperty);
         boolean jmeterExists = Files.exists(jmeterPath);
         
-        // Try to find alternative JMeter paths
+        // Try to find alternative JMeter paths (Linux/Ubuntu uses .sh scripts)
         String[] commonPaths = {
-            "/opt/jmeter/bin/ApacheJMeter.jar",
-            "/usr/local/jmeter/bin/ApacheJMeter.jar", 
-            "/home/ubuntu/apache-jmeter-5.6.3/bin/ApacheJMeter.jar",
-            "/opt/apache-jmeter-5.6.3/bin/ApacheJMeter.jar"
+            "/opt/jmeter/bin/jmeter.sh",
+            "/usr/local/jmeter/bin/jmeter.sh", 
+            "/home/ubuntu/apache-jmeter-5.6.3/bin/jmeter.sh",
+            "/opt/apache-jmeter-5.6.3/bin/jmeter.sh",
+            "/opt/jmeter/bin/jmeter",
+            "/usr/local/jmeter/bin/jmeter",
+            "/home/ubuntu/apache-jmeter-5.6.3/bin/jmeter",
+            "/opt/apache-jmeter-5.6.3/bin/jmeter"
         };
         
         String foundPath = null;
