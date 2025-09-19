@@ -369,7 +369,7 @@ public class JMeterService {
             cmd.add("/c");
             cmd.add(jmeterPath);
             cmd.addAll(Arrays.asList(args));
-        } else if (jmeterPath.toLowerCase().endsWith(".jar")) {
+        } else if (jmeterPath.toLowerCase().endsWith(".sh")) {
             // For JAR file execution, use java -jar
             cmd.add("java");
             cmd.add("-Xmx1024m"); // Set JVM heap size
