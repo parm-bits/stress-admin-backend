@@ -51,7 +51,7 @@ public class JMeterService {
     }
 
     @Async
-    public CompletableFuture<Void> runTest(String useCaseId, int users) {
+    public CompletableFuture<Void> runTest(String useCaseId, int users, int durationSeconds) {
         Optional<UseCase> opt = repo.findById(useCaseId);
         if (opt.isEmpty()) {
             System.err.println("Use case not found: " + useCaseId);
@@ -133,6 +133,8 @@ public class JMeterService {
                     "-Jusers=" + users,
                     "-e",
                     "-o", reportDir.toString(),
+                    "-Jduration=" + durationSeconds,
+                    "-Jrampup=" + Math.max(60, durationSeconds / 5), // Ramp up over 20% of duration, minimum 60 seconds
                     "-Jjmeter.save.saveservice.output_format=csv",
                     "-Jjmeter.save.saveservice.response_data=false",
                     "-Jjmeter.save.saveservice.samplerData=false",
@@ -147,7 +149,7 @@ public class JMeterService {
             }
 
             // Log the command being executed
-            System.out.println("Executing JMeter command: " + String.join(" ", cmd));
+            System.out.println("Executing JMeter command-->: " + String.join(" ", cmd));
 
             ProcessBuilder pb = new ProcessBuilder(cmd);
             pb.redirectErrorStream(true);
@@ -193,9 +195,9 @@ public class JMeterService {
             uc.setTestCompletedAt(testEndTime);
             
             if (uc.getTestStartedAt() != null) {
-                long durationSeconds = java.time.Duration.between(uc.getTestStartedAt(), testEndTime).getSeconds();
-                uc.setTestDurationSeconds(durationSeconds);
-                System.out.println("Test duration: " + durationSeconds + " seconds (" + formatDuration(durationSeconds) + ")");
+                long actualDurationSeconds = java.time.Duration.between(uc.getTestStartedAt(), testEndTime).getSeconds();
+                uc.setTestDurationSeconds(actualDurationSeconds);
+                System.out.println("Test duration: " + actualDurationSeconds + " seconds (" + formatDuration(actualDurationSeconds) + ")");
             }
             
             if (exit == 0) {
@@ -226,9 +228,9 @@ public class JMeterService {
             uc.setTestCompletedAt(testEndTime);
             
             if (uc.getTestStartedAt() != null) {
-                long durationSeconds = java.time.Duration.between(uc.getTestStartedAt(), testEndTime).getSeconds();
-                uc.setTestDurationSeconds(durationSeconds);
-                System.out.println("Test failed after: " + durationSeconds + " seconds (" + formatDuration(durationSeconds) + ")");
+                long actualDurationSeconds = java.time.Duration.between(uc.getTestStartedAt(), testEndTime).getSeconds();
+                uc.setTestDurationSeconds(actualDurationSeconds);
+                System.out.println("Test failed after: " + actualDurationSeconds + " seconds (" + formatDuration(actualDurationSeconds) + ")");
             }
             
             repo.save(uc);
@@ -369,7 +371,7 @@ public class JMeterService {
             cmd.add("/c");
             cmd.add(jmeterPath);
             cmd.addAll(Arrays.asList(args));
-        } else if (jmeterPath.toLowerCase().endsWith(".sh")) {
+        } else if (jmeterPath.toLowerCase().endsWith(".jar")) {
             // For JAR file execution, use java -jar
             cmd.add("java");
             cmd.add("-Xmx1024m"); // Set JVM heap size

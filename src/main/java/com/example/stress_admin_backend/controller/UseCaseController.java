@@ -167,10 +167,17 @@ public class UseCaseController {
             @PathVariable String id, 
             
             @Parameter(description = "Number of concurrent users for the test", example = "50")
-            @RequestParam(defaultValue = "50") int users) {
+            @RequestParam(defaultValue = "50") int users,
+            
+            @Parameter(description = "Test duration in seconds", example = "300")
+            @RequestParam(defaultValue = "300") int duration) {
         
         if (users <= 0 || users > 10000) {
             return ResponseEntity.badRequest().body(Map.of("error", "Users must be between 1 and 10000"));
+        }
+        
+        if (duration <= 0 || duration > 3600) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Duration must be between 1 and 3600 seconds"));
         }
         
         if (!repo.existsById(id)) {
@@ -178,7 +185,7 @@ public class UseCaseController {
         }
         
         try {
-            jMeterService.runTest(id, users);
+            jMeterService.runTest(id, users, duration);
             return ResponseEntity.accepted().body(Map.of("message", "Run started", "useCaseId", id));
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body(Map.of("error", "Failed to start test: " + e.getMessage()));
