@@ -11,6 +11,7 @@ import java.nio.file.*;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import jakarta.annotation.PostConstruct;
 
 @Service
 public class JMeterService {
@@ -39,7 +40,16 @@ public class JMeterService {
         this.storage = storage;
         this.repo = repo;
         this.jmxModificationService = jmxModificationService;
-        this.jmeterPath = defaultJmeterPath; // Initialize with default value
+        // Don't initialize jmeterPath here - it will be set by @PostConstruct
+    }
+    
+    /**
+     * Initialize jmeterPath after dependency injection
+     */
+    @PostConstruct
+    public void init() {
+        this.jmeterPath = defaultJmeterPath;
+        System.out.println("JMeterService initialized with path: " + jmeterPath);
     }
     
     /**
