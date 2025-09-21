@@ -20,13 +20,24 @@ public class JmxModificationService {
     /**
      * Modifies a JMX file with the thread group and server configuration from the use case
      */
-    public String modifyJmxWithConfiguration(String jmxPath, UseCase useCase) throws IOException {
+    public String modifyJmxWithConfiguration(String jmxPath, UseCase useCase, int durationSeconds) throws IOException {
         // Read the original JMX file
         String jmxContent = Files.readString(Paths.get(jmxPath));
         
         System.out.println("Starting JMX modification for use case: " + useCase.getName());
         System.out.println("Thread group config: " + useCase.getThreadGroupConfig());
         System.out.println("Server config: " + useCase.getServerConfig());
+        System.out.println("Duration: " + durationSeconds + " seconds");
+        
+        // Always apply duration to ensure test runs for specified time
+        System.out.println("Applying duration configuration...");
+        jmxContent = updateJmxProperty(jmxContent, "ThreadGroup.duration", String.valueOf(durationSeconds));
+        System.out.println("Updated duration to: " + durationSeconds + " seconds");
+        
+        // Update CSV Data Set Config filename to use server storage path
+        System.out.println("Updating CSV Data Set Config filename...");
+        jmxContent = updateCsvDataSetConfigFilename(jmxContent, useCase);
+        System.out.println("Updated CSV filename to server storage path");
         
         // Apply thread group configuration if available
         if (useCase.getThreadGroupConfig() != null && !useCase.getThreadGroupConfig().isEmpty()) {
@@ -305,5 +316,103 @@ public class JmxModificationService {
                 return "continue";
         }
     }
-    
+
+    /**
+     * Updates CSV Data Set Config filename to use server storage path
+     */
+    private String updateCsvDataSetConfigFilename(String jmxContent, UseCase useCase) {
+        // Extract CSV filename from use case
+        String csvFilename = useCase.getCsvPath();
+        if (csvFilename == null || csvFilename.isEmpty()) {
+            System.out.println("No CSV path found in use case, skipping CSV filename update");
+            return jmxContent;
+        }
+        
+        // Extract just the filename from the full path
+        String csvFileName = Paths.get(csvFilename).getFileName().toString();
+        String serverCsvPath = "/home/ubuntu/stress-admin-storage/csv/" + csvFileName;
+        
+        System.out.println("Original CSV path: " + csvFilename);
+        System.out.println("Server CSV path: " + serverCsvPath);
+        
+        // Debug: Check if JMX contains CSV Data Set Config
+        boolean containsCsvDataSet = jmxContent.contains("CSVDataSet");
+        System.out.println("JMX contains CSVDataSet: " + containsCsvDataSet);
+        
+        if (containsCsvDataSet) {
+            // Debug: Find all filename properties
+            Pattern filenamePattern = Pattern.compile("<stringProp name=\"filename\">(.*?)</stringProp>", Pattern.DOTALL);
+            java.util.regex.Matcher filenameMatcher = filenamePattern.matcher(jmxContent);
+            int filenameCount = 0;
+            while (filenameMatcher.find()) {
+                filenameCount++;
+                String foundPath = filenameMatcher.group(1);
+                System.out.println("Found filename property #" + filenameCount + ": " + foundPath);
+                
+                // Check if this looks like a Windows CSV path
+                if (foundPath.toLowerCase().contains(".csv") && (foundPath.contains("\\") || foundPath.contains("C:/"))) {
+                    System.out.println("  -> This looks like a Windows CSV path that needs updating!");
+                }
+            }
+            System.out.println("Total filename properties found: " + filenameCount);
+            
+            // Debug: Show a snippet of the JMX around CSVDataSet
+            int csvDataSetIndex = jmxContent.indexOf("CSVDataSet");
+            if (csvDataSetIndex >= 0) {
+                String snippet = jmxContent.substring(Math.max(0, csvDataSetIndex - 200), 
+                    Math.min(jmxContent.length(), csvDataSetIndex + 500));
+                System.out.println("JMX snippet around CSVDataSet:");
+                System.out.println(snippet);
+            }
+        }
+        
+        // Find CSV Data Set Config elements and update their filename
+        // Try multiple patterns to match different JMX structures
+        String result = jmxContent;
+        boolean updated = false;
+        
+        // Pattern 1: Look for CSVDataSet element with filename property
+        String csvDataSetPattern1 = "(<CSVDataSet[^>]*>.*?<stringProp name=\"filename\">)(.*?)(</stringProp>.*?</CSVDataSet>)";
+        Pattern pattern1 = Pattern.compile(csvDataSetPattern1, Pattern.DOTALL);
+        if (pattern1.matcher(result).find()) {
+            result = pattern1.matcher(result).replaceAll("$1" + serverCsvPath + "$3");
+            updated = true;
+            System.out.println("Updated CSV filename using Pattern 1 (CSVDataSet element)");
+        }
+        
+        // Pattern 2: Look for any filename property that contains Windows path (both \ and /)
+        String windowsPathPattern = "(<stringProp name=\"filename\">)(.*?[Cc]:[/\\\\].*?)(</stringProp>)";
+        Pattern pattern2 = Pattern.compile(windowsPathPattern, Pattern.DOTALL);
+        if (pattern2.matcher(result).find()) {
+            result = pattern2.matcher(result).replaceAll("$1" + serverCsvPath + "$3");
+            updated = true;
+            System.out.println("Updated CSV filename using Pattern 2 (Windows path)");
+        }
+        
+        // Pattern 3: Look for any filename property that contains .csv and looks like a local path
+        String csvFilePattern = "(<stringProp name=\"filename\">)(.*?[/\\\\].*?\\.csv)(</stringProp>)";
+        Pattern pattern3 = Pattern.compile(csvFilePattern, Pattern.DOTALL);
+        if (pattern3.matcher(result).find()) {
+            result = pattern3.matcher(result).replaceAll("$1" + serverCsvPath + "$3");
+            updated = true;
+            System.out.println("Updated CSV filename using Pattern 3 (CSV file pattern)");
+        }
+        
+        // Pattern 4: More specific pattern for the exact case mentioned - C:/Users/... paths
+        String specificWindowsPattern = "(<stringProp name=\"filename\">)(C:/Users/[^<]*\\.csv)(</stringProp>)";
+        Pattern pattern4 = Pattern.compile(specificWindowsPattern, Pattern.DOTALL);
+        if (pattern4.matcher(result).find()) {
+            result = pattern4.matcher(result).replaceAll("$1" + serverCsvPath + "$3");
+            updated = true;
+            System.out.println("Updated CSV filename using Pattern 4 (Specific Windows Users path)");
+        }
+        
+        if (updated) {
+            System.out.println("Successfully updated CSV Data Set Config filename to: " + serverCsvPath);
+        } else {
+            System.out.println("No CSV Data Set Config found to update - no patterns matched");
+        }
+        
+        return result;
+    }
 }

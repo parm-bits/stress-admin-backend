@@ -146,6 +146,25 @@ public class UseCaseController {
                     .build();
 
             UseCase saved = repo.save(uc);
+            
+            // Log CSV configuration status after use case creation
+            System.out.println("✅ Use Case Created Successfully!");
+            System.out.println("📋 Use Case Details:");
+            System.out.println("   - ID: " + saved.getId());
+            System.out.println("   - Name: " + saved.getName());
+            System.out.println("   - JMX Path: " + saved.getJmxPath());
+            System.out.println("   - CSV Path: " + saved.getCsvPath());
+            System.out.println("   - Requires CSV: " + saved.getRequiresCsv());
+            
+            if (saved.getCsvPath() != null && !saved.getCsvPath().isEmpty()) {
+                System.out.println("✅ CSV Configuration: PROPERLY CONFIGURED");
+                System.out.println("   - CSV file will be automatically mapped to server path during test execution");
+                System.out.println("   - Original JMX CSV paths will be replaced with: " + saved.getCsvPath());
+            } else {
+                System.out.println("ℹ️ CSV Configuration: NO CSV FILE REQUIRED");
+                System.out.println("   - This use case does not require CSV data");
+            }
+            
             return ResponseEntity.created(new URI("/api/usecases/" + saved.getId())).body(saved);
             
         } catch (Exception e) {
@@ -364,6 +383,25 @@ public class UseCaseController {
                     .build();
             
             UseCase saved = repo.save(useCase);
+            
+            // Log CSV configuration status after use case creation
+            System.out.println("✅ Use Case Created Successfully!");
+            System.out.println("📋 Use Case Details:");
+            System.out.println("   - ID: " + saved.getId());
+            System.out.println("   - Name: " + saved.getName());
+            System.out.println("   - JMX Path: " + saved.getJmxPath());
+            System.out.println("   - CSV Path: " + saved.getCsvPath());
+            System.out.println("   - Requires CSV: " + saved.getRequiresCsv());
+            
+            if (saved.getCsvPath() != null && !saved.getCsvPath().isEmpty()) {
+                System.out.println("✅ CSV Configuration: PROPERLY CONFIGURED");
+                System.out.println("   - CSV file will be automatically mapped to server path during test execution");
+                System.out.println("   - Original JMX CSV paths will be replaced with: " + saved.getCsvPath());
+            } else {
+                System.out.println("ℹ️ CSV Configuration: NO CSV FILE REQUIRED");
+                System.out.println("   - This use case does not require CSV data");
+            }
+            
             return ResponseEntity.created(new URI("/api/usecases/" + saved.getId())).body(saved);
             
         } catch (Exception e) {
@@ -421,7 +459,28 @@ public class UseCaseController {
                 
                 UseCase saved = repo.save(useCase);
                 createdUseCases.add(saved);
+                
+                // Log CSV configuration status for each use case
+                System.out.println("✅ Use Case Created Successfully!");
+                System.out.println("📋 Use Case Details:");
+                System.out.println("   - ID: " + saved.getId());
+                System.out.println("   - Name: " + saved.getName());
+                System.out.println("   - JMX Path: " + saved.getJmxPath());
+                System.out.println("   - CSV Path: " + saved.getCsvPath());
+                System.out.println("   - Requires CSV: " + saved.getRequiresCsv());
+                
+                if (saved.getCsvPath() != null && !saved.getCsvPath().isEmpty()) {
+                    System.out.println("✅ CSV Configuration: PROPERLY CONFIGURED");
+                    System.out.println("   - CSV file will be automatically mapped to server path during test execution");
+                    System.out.println("   - Original JMX CSV paths will be replaced with: " + saved.getCsvPath());
+                } else {
+                    System.out.println("ℹ️ CSV Configuration: NO CSV FILE REQUIRED");
+                    System.out.println("   - This use case does not require CSV data");
+                }
             }
+            
+            System.out.println("🎉 Batch Use Case Creation Completed!");
+            System.out.println("📊 Total Use Cases Created: " + createdUseCases.size());
             
             return ResponseEntity.ok(createdUseCases);
             
@@ -489,6 +548,24 @@ public class UseCaseController {
                 UseCase saved = repo.save(useCase);
                 createdUseCases.add(saved);
                 userCounts.put(saved.getId(), saved.getUserCount());
+                
+                // Log CSV configuration status for each use case
+                System.out.println("✅ Use Case Created Successfully!");
+                System.out.println("📋 Use Case Details:");
+                System.out.println("   - ID: " + saved.getId());
+                System.out.println("   - Name: " + saved.getName());
+                System.out.println("   - JMX Path: " + saved.getJmxPath());
+                System.out.println("   - CSV Path: " + saved.getCsvPath());
+                System.out.println("   - Requires CSV: " + saved.getRequiresCsv());
+                
+                if (saved.getCsvPath() != null && !saved.getCsvPath().isEmpty()) {
+                    System.out.println("✅ CSV Configuration: PROPERLY CONFIGURED");
+                    System.out.println("   - CSV file will be automatically mapped to server path during test execution");
+                    System.out.println("   - Original JMX CSV paths will be replaced with: " + saved.getCsvPath());
+                } else {
+                    System.out.println("ℹ️ CSV Configuration: NO CSV FILE REQUIRED");
+                    System.out.println("   - This use case does not require CSV data");
+                }
             }
             
             // Create test session
@@ -503,6 +580,27 @@ public class UseCaseController {
                 userCounts,
                 userId
             );
+            
+            // Log concurrent test session summary
+            System.out.println("🎉 Concurrent Test Session Created Successfully!");
+            System.out.println("📊 Session Summary:");
+            System.out.println("   - Session ID: " + session.getId());
+            System.out.println("   - Session Name: " + session.getName());
+            System.out.println("   - Total Use Cases: " + createdUseCases.size());
+            System.out.println("   - Total Users: " + session.getTotalUsers());
+            
+            // Count CSV configurations
+            long csvConfiguredCount = createdUseCases.stream()
+                    .filter(uc -> uc.getCsvPath() != null && !uc.getCsvPath().isEmpty())
+                    .count();
+            
+            System.out.println("📋 CSV Configuration Summary:");
+            System.out.println("   - Use Cases with CSV: " + csvConfiguredCount);
+            System.out.println("   - Use Cases without CSV: " + (createdUseCases.size() - csvConfiguredCount));
+            
+            if (csvConfiguredCount > 0) {
+                System.out.println("✅ All CSV configurations will be automatically applied during test execution");
+            }
             
             // Start the concurrent test
             concurrentTestService.runConcurrentTest(session.getId());
@@ -588,7 +686,7 @@ public class UseCaseController {
             String modifiedJmxContent;
             if ((useCase.getThreadGroupConfig() != null && !useCase.getThreadGroupConfig().isEmpty()) ||
                 (useCase.getServerConfig() != null && !useCase.getServerConfig().isEmpty())) {
-                modifiedJmxContent = jmxModificationService.modifyJmxWithConfiguration(useCase.getJmxPath(), useCase);
+                modifiedJmxContent = jmxModificationService.modifyJmxWithConfiguration(useCase.getJmxPath(), useCase, 300);
             } else {
                 // Read original content if no configuration to apply
                 modifiedJmxContent = new String(resource.getInputStream().readAllBytes());

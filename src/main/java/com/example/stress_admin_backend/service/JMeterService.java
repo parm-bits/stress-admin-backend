@@ -134,7 +134,7 @@ public class JMeterService {
             Files.createDirectories(reportDir);
 
             // Create modified JMX file with updated configurations
-            modifiedJmxPath = createModifiedJmxFile(uc, stamp);
+            modifiedJmxPath = createModifiedJmxFile(uc, stamp, durationSeconds);
             
             List<String> cmd = buildJMeterCommand(
                     "-n",
@@ -283,32 +283,26 @@ public class JMeterService {
     /**
      * Creates a modified JMX file with the updated configurations from the use case
      */
-    private String createModifiedJmxFile(UseCase useCase, String stamp) throws IOException {
+    private String createModifiedJmxFile(UseCase useCase, String stamp, int durationSeconds) throws IOException {
         String originalJmxPath = useCase.getJmxPath();
         
-        // Check if we need to apply modifications
-        boolean hasThreadGroupConfig = useCase.getThreadGroupConfig() != null && !useCase.getThreadGroupConfig().isEmpty();
-        boolean hasServerConfig = useCase.getServerConfig() != null && !useCase.getServerConfig().isEmpty();
-        
-        if (!hasThreadGroupConfig && !hasServerConfig) {
-            // No modifications needed, return original path
-            System.out.println("No configurations to apply, using original JMX file: " + originalJmxPath);
-            return originalJmxPath;
-        }
+        // Always create a modified JMX file to ensure duration and CSV path are properly set
+        System.out.println("Creating modified JMX file to set duration: " + durationSeconds + " seconds and fix CSV paths");
         
         // Create modified JMX file
         String modifiedJmxPath = storage.getResultsDir().resolve("modified_" + useCase.getId() + "_" + stamp + ".jmx").toString();
         
         try {
             // Apply modifications using JmxModificationService
-            String modifiedJmxContent = jmxModificationService.modifyJmxWithConfiguration(originalJmxPath, useCase);
+            String modifiedJmxContent = jmxModificationService.modifyJmxWithConfiguration(originalJmxPath, useCase, durationSeconds);
             
             // Write modified content to new file
             Files.write(Paths.get(modifiedJmxPath), modifiedJmxContent.getBytes());
             
             System.out.println("Created modified JMX file: " + modifiedJmxPath);
-            System.out.println("Applied thread group config: " + hasThreadGroupConfig);
-            System.out.println("Applied server config: " + hasServerConfig);
+            System.out.println("Applied duration: " + durationSeconds + " seconds");
+            System.out.println("Applied thread group config: " + (useCase.getThreadGroupConfig() != null && !useCase.getThreadGroupConfig().isEmpty()));
+            System.out.println("Applied server config: " + (useCase.getServerConfig() != null && !useCase.getServerConfig().isEmpty()));
             
             return modifiedJmxPath;
             
