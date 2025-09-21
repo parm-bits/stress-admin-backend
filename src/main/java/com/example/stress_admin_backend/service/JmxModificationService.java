@@ -366,51 +366,38 @@ public class JmxModificationService {
             }
         }
         
-        // Find CSV Data Set Config elements and update their filename
-        // Try multiple patterns to match different JMX structures
+        // FIXED: Use a single, precise pattern to avoid XML corruption
         String result = jmxContent;
         boolean updated = false;
         
-        // Pattern 1: Look for CSVDataSet element with filename property
-        String csvDataSetPattern1 = "(<CSVDataSet[^>]*>.*?<stringProp name=\"filename\">)(.*?)(</stringProp>.*?</CSVDataSet>)";
-        Pattern pattern1 = Pattern.compile(csvDataSetPattern1, Pattern.DOTALL);
-        if (pattern1.matcher(result).find()) {
-            result = pattern1.matcher(result).replaceAll("$1" + serverCsvPath + "$3");
-            updated = true;
-            System.out.println("Updated CSV filename using Pattern 1 (CSVDataSet element)");
-        }
+        // Single pattern: Look specifically for CSVDataSet filename property
+        // This pattern is more precise and won't interfere with other XML elements
+        String csvDataSetPattern = "(<CSVDataSet[^>]*>.*?<stringProp name=\"filename\">)([^<]*)(</stringProp>.*?</CSVDataSet>)";
+        Pattern pattern = Pattern.compile(csvDataSetPattern, Pattern.DOTALL);
+        java.util.regex.Matcher matcher = pattern.matcher(result);
         
-        // Pattern 2: Look for any filename property that contains Windows path (both \ and /)
-        String windowsPathPattern = "(<stringProp name=\"filename\">)(.*?[Cc]:[/\\\\].*?)(</stringProp>)";
-        Pattern pattern2 = Pattern.compile(windowsPathPattern, Pattern.DOTALL);
-        if (pattern2.matcher(result).find()) {
-            result = pattern2.matcher(result).replaceAll("$1" + serverCsvPath + "$3");
-            updated = true;
-            System.out.println("Updated CSV filename using Pattern 2 (Windows path)");
-        }
-        
-        // Pattern 3: Look for any filename property that contains .csv and looks like a local path
-        String csvFilePattern = "(<stringProp name=\"filename\">)(.*?[/\\\\].*?\\.csv)(</stringProp>)";
-        Pattern pattern3 = Pattern.compile(csvFilePattern, Pattern.DOTALL);
-        if (pattern3.matcher(result).find()) {
-            result = pattern3.matcher(result).replaceAll("$1" + serverCsvPath + "$3");
-            updated = true;
-            System.out.println("Updated CSV filename using Pattern 3 (CSV file pattern)");
-        }
-        
-        // Pattern 4: More specific pattern for the exact case mentioned - C:/Users/... paths
-        String specificWindowsPattern = "(<stringProp name=\"filename\">)(C:/Users/[^<]*\\.csv)(</stringProp>)";
-        Pattern pattern4 = Pattern.compile(specificWindowsPattern, Pattern.DOTALL);
-        if (pattern4.matcher(result).find()) {
-            result = pattern4.matcher(result).replaceAll("$1" + serverCsvPath + "$3");
-            updated = true;
-            System.out.println("Updated CSV filename using Pattern 4 (Specific Windows Users path)");
+        if (matcher.find()) {
+            String originalPath = matcher.group(2);
+            System.out.println("Found CSVDataSet with filename: " + originalPath);
+            
+            // Only replace if it's a Windows path or local path
+            if (originalPath.contains("C:/") || originalPath.contains("C:\\") || originalPath.contains("\\")) {
+                result = matcher.replaceAll("$1" + serverCsvPath + "$3");
+                updated = true;
+                System.out.println("✅ Updated CSV filename using precise CSVDataSet pattern");
+                System.out.println("   Original: " + originalPath);
+                System.out.println("   Updated: " + serverCsvPath);
+            } else {
+                System.out.println("ℹ️ CSV path is already a server path, no update needed");
+            }
+        } else {
+            System.out.println("⚠️ No CSVDataSet element found with filename property");
         }
         
         if (updated) {
-            System.out.println("Successfully updated CSV Data Set Config filename to: " + serverCsvPath);
+            System.out.println("✅ Successfully updated CSV Data Set Config filename to: " + serverCsvPath);
         } else {
-            System.out.println("No CSV Data Set Config found to update - no patterns matched");
+            System.out.println("ℹ️ No CSV Data Set Config found to update or already correct");
         }
         
         return result;
