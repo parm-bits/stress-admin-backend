@@ -119,8 +119,11 @@ public class JmxModificationService {
                 System.out.println("Updated specifyThreadLifetime to: " + specifyLifetime);
             }
             
-            // SKIP duration update - respect JMX file's original ThreadGroup.duration
-            // The duration should come from the JMX file, not from UI config
+            // Update duration from UI Thread Group config (overrides JMX file duration)
+            if (config.containsKey("duration")) {
+                jmxContent = updateJmxProperty(jmxContent, "ThreadGroup.duration", config.get("duration").toString());
+                System.out.println("Updated duration to: " + config.get("duration") + " seconds (from UI config)");
+            }
             
             // Update startup delay
             if (config.containsKey("startupDelay")) {

@@ -74,7 +74,7 @@ public class JMeterService {
         uc.setTestStartedAt(LocalDateTime.now());
         uc.setTestCompletedAt(null); // Clear previous completion time
         uc.setTestDurationSeconds(null); // Clear previous duration
-        uc.setExpectedDurationSeconds(null); // Don't set expected duration - respect JMX file duration
+        uc.setExpectedDurationSeconds((long) durationSeconds); // Store expected duration from UI
         uc.setUserCount(users);
         repo.save(uc);
         
@@ -134,8 +134,8 @@ public class JMeterService {
             if (Files.exists(reportDir)) deleteRecursive(reportDir);
             Files.createDirectories(reportDir);
 
-            // Create modified JMX file with updated configurations (respect JMX Thread Group duration)
-            modifiedJmxPath = createModifiedJmxFile(uc, stamp);
+            // Create modified JMX file with updated configurations (including duration from UI)
+            modifiedJmxPath = createModifiedJmxFile(uc, stamp, durationSeconds);
             
             List<String> cmd = buildJMeterCommand(
                     "-n",
@@ -283,23 +283,24 @@ public class JMeterService {
     /**
      * Creates a modified JMX file with the updated configurations from the use case
      */
-    private String createModifiedJmxFile(UseCase useCase, String stamp) throws IOException {
+    private String createModifiedJmxFile(UseCase useCase, String stamp, int durationSeconds) throws IOException {
         String originalJmxPath = useCase.getJmxPath();
         
-        // Always create a modified JMX file to fix CSV paths
-        System.out.println("Creating modified JMX file to fix CSV paths");
+        // Always create a modified JMX file to fix CSV paths and apply UI duration
+        System.out.println("Creating modified JMX file to fix CSV paths and apply duration: " + durationSeconds + " seconds");
         
         // Create modified JMX file
         String modifiedJmxPath = storage.getResultsDir().resolve("modified_" + useCase.getId() + "_" + stamp + ".jmx").toString();
         
         try {
-            // Apply modifications using JmxModificationService (pass 0 to never override duration)
-            String modifiedJmxContent = jmxModificationService.modifyJmxWithConfiguration(originalJmxPath, useCase, 0);
+            // Apply modifications using JmxModificationService (pass duration to override JMX)
+            String modifiedJmxContent = jmxModificationService.modifyJmxWithConfiguration(originalJmxPath, useCase, durationSeconds);
             
             // Write modified content to new file
             Files.write(Paths.get(modifiedJmxPath), modifiedJmxContent.getBytes());
             
             System.out.println("Created modified JMX file: " + modifiedJmxPath);
+            System.out.println("Applied duration: " + durationSeconds + " seconds (from UI config)");
             System.out.println("Applied thread group config: " + (useCase.getThreadGroupConfig() != null && !useCase.getThreadGroupConfig().isEmpty()));
             System.out.println("Applied server config: " + (useCase.getServerConfig() != null && !useCase.getServerConfig().isEmpty()));
             
