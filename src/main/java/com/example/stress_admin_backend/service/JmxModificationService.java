@@ -380,15 +380,15 @@ public class JmxModificationService {
             String originalPath = matcher.group(2);
             System.out.println("Found CSVDataSet with filename: " + originalPath);
             
-            // Only replace if it's a Windows path or local path
-            if (originalPath.contains("C:/") || originalPath.contains("C:\\") || originalPath.contains("\\")) {
+            // Always replace with the server path (unless it's already the correct server path)
+            if (!originalPath.equals(serverCsvPath)) {
                 result = matcher.replaceAll("$1" + serverCsvPath + "$3");
                 updated = true;
                 System.out.println("✅ Updated CSV filename using precise CSVDataSet pattern");
                 System.out.println("   Original: " + originalPath);
                 System.out.println("   Updated: " + serverCsvPath);
             } else {
-                System.out.println("ℹ️ CSV path is already a server path, no update needed");
+                System.out.println("ℹ️ CSV path is already the correct server path, no update needed");
             }
         } else {
             System.out.println("⚠️ No CSVDataSet element found with filename property");

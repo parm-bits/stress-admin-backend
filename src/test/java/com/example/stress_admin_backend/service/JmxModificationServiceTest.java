@@ -95,17 +95,21 @@ class JmxModificationServiceTest {
 
     @Test
     void testCsvPathReplacementWithDifferentPatterns() throws IOException {
-        // Test different CSV path patterns
-        String[] testPaths = {
+        // Test different CSV path patterns - only Windows paths should be updated
+        String[] windowsPaths = {
             "C:/Users/ParmjeetYadav/Desktop/stress-admin/SendMsgDid/userst2.csv",
-            "C:\\Users\\ParmjeetYadav\\Desktop\\stress-admin\\SendMsgDid\\userst2.csv",
+            "C:\\Users\\ParmjeetYadav\\Desktop\\stress-admin\\SendMsgDid\\userst2.csv"
+        };
+
+        String[] serverPaths = {
             "/home/user/test.csv",
             "relative/path/test.csv"
         };
 
         String expectedServerPath = "/home/ubuntu/stress-admin-storage/csv/test-uuid_userst2.csv";
 
-        for (String testPath : testPaths) {
+        // Test Windows paths - these should be updated
+        for (String testPath : windowsPaths) {
             String testJmxContent = """
                 <?xml version="1.0" encoding="UTF-8"?>
                 <jmeterTestPlan version="1.2">
@@ -138,10 +142,52 @@ class JmxModificationServiceTest {
                         tempJmxFile.toString(), testUseCase, 300);
 
                 assertTrue(modifiedContent.contains(expectedServerPath),
-                        "CSV path should be updated for pattern: " + testPath);
+                        "CSV path should be updated for Windows pattern: " + testPath);
                 
                 assertFalse(modifiedContent.contains(testPath),
-                        "Original CSV path should be replaced for pattern: " + testPath);
+                        "Original Windows CSV path should be replaced for pattern: " + testPath);
+
+            } finally {
+                Files.deleteIfExists(tempJmxFile);
+            }
+        }
+
+        // Test server paths - these should be updated to the correct server path
+        for (String testPath : serverPaths) {
+            String testJmxContent = """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <jmeterTestPlan version="1.2">
+                  <hashTree>
+                    <TestPlan testname="Test Plan"></TestPlan>
+                    <hashTree>
+                      <ThreadGroup testname="Thread Group">
+                        <longProp name="ThreadGroup.duration">900</longProp>
+                      </ThreadGroup>
+                      <hashTree>
+                        <CSVDataSet testname="CSV Data Set Config">
+                          <stringProp name="filename">%s</stringProp>
+                        </CSVDataSet>
+                      </hashTree>
+                    </hashTree>
+                  </hashTree>
+                </jmeterTestPlan>
+                """.formatted(testPath);
+
+            UseCase testUseCase = UseCase.builder()
+                    .name("Test Use Case")
+                    .csvPath("/home/ubuntu/stress-admin-storage/csv/test-uuid_userst2.csv")
+                    .build();
+
+            Path tempJmxFile = Files.createTempFile("test", ".jmx");
+            Files.write(tempJmxFile, testJmxContent.getBytes());
+
+            try {
+                String modifiedContent = jmxModificationService.modifyJmxWithConfiguration(
+                        tempJmxFile.toString(), testUseCase, 300);
+
+                // All CSV paths should be updated to the expected server path
+                assertTrue(modifiedContent.contains(expectedServerPath),
+                        "CSV path should be updated for pattern: " + testPath);
 
             } finally {
                 Files.deleteIfExists(tempJmxFile);
