@@ -29,13 +29,20 @@ public class JmxModificationService {
         System.out.println("Server config: " + useCase.getServerConfig());
         System.out.println("Duration: " + durationSeconds + " seconds");
         
-        // Only apply duration if no thread group configuration is provided
-        if (useCase.getThreadGroupConfig() == null || useCase.getThreadGroupConfig().isEmpty()) {
-            System.out.println("No thread group configuration provided, applying default duration...");
-            jmxContent = updateJmxProperty(jmxContent, "ThreadGroup.duration", String.valueOf(durationSeconds));
-            System.out.println("Updated duration to: " + durationSeconds + " seconds");
+        // Only apply duration if explicitly requested (durationSeconds > 0)
+        if (durationSeconds > 0) {
+            // Check if JMX already has a ThreadGroup duration set
+            boolean hasExistingDuration = jmxContent.contains("<longProp name=\"ThreadGroup.duration\">");
+            
+            if (hasExistingDuration) {
+                System.out.println("JMX already has ThreadGroup duration set, respecting existing configuration");
+            } else {
+                System.out.println("No ThreadGroup duration found in JMX, applying duration from parameter...");
+                jmxContent = updateJmxProperty(jmxContent, "ThreadGroup.duration", String.valueOf(durationSeconds));
+                System.out.println("Updated duration to: " + durationSeconds + " seconds");
+            }
         } else {
-            System.out.println("Thread group configuration provided, respecting user settings for duration");
+            System.out.println("Duration override disabled, respecting JMX Thread Group configuration");
         }
         
         // Update CSV Data Set Config filename to use server storage path

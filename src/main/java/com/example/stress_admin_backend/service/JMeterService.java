@@ -134,8 +134,8 @@ public class JMeterService {
             if (Files.exists(reportDir)) deleteRecursive(reportDir);
             Files.createDirectories(reportDir);
 
-            // Create modified JMX file with updated configurations
-            modifiedJmxPath = createModifiedJmxFile(uc, stamp, durationSeconds);
+            // Create modified JMX file with updated configurations (pass 0 to respect JMX Thread Group duration)
+            modifiedJmxPath = createModifiedJmxFile(uc, stamp, 0);
             
             List<String> cmd = buildJMeterCommand(
                     "-n",
@@ -144,7 +144,6 @@ public class JMeterService {
                     "-Jusers=" + users,
                     "-e",
                     "-o", reportDir.toString(),
-                    "-Jduration=" + durationSeconds,
                     "-Jrampup=" + Math.max(60, durationSeconds / 5), // Ramp up over 20% of duration, minimum 60 seconds
                     "-Jjmeter.save.saveservice.output_format=csv",
                     "-Jjmeter.save.saveservice.response_data=false",
