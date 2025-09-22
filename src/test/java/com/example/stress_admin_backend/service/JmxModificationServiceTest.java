@@ -78,9 +78,13 @@ class JmxModificationServiceTest {
             assertFalse(modifiedContent.contains("C:/Users/ParmjeetYadav/Desktop/stress-admin/SendMsgDid/userst2.csv"),
                     "Original Windows CSV path should be replaced");
 
-            // Verify that the duration was updated
-            assertTrue(modifiedContent.contains("<longProp name=\"ThreadGroup.duration\">300</longProp>"),
-                    "Duration should be updated to 300 seconds");
+            // Verify that the duration was NOT updated (should remain original JMX duration)
+            assertTrue(modifiedContent.contains("<longProp name=\"ThreadGroup.duration\">900</longProp>"),
+                    "Duration should remain original JMX duration (900 seconds) - not overridden");
+            
+            // Verify that duration was NOT changed to 300
+            assertFalse(modifiedContent.contains("<longProp name=\"ThreadGroup.duration\">300</longProp>"),
+                    "Duration should NOT be updated to 300 seconds");
 
             System.out.println("Test passed: CSV path replacement working correctly");
             System.out.println("Modified content snippet:");

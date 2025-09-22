@@ -27,23 +27,6 @@ public class JmxModificationService {
         System.out.println("Starting JMX modification for use case: " + useCase.getName());
         System.out.println("Thread group config: " + useCase.getThreadGroupConfig());
         System.out.println("Server config: " + useCase.getServerConfig());
-        System.out.println("Duration: " + durationSeconds + " seconds");
-        
-        // Only apply duration if explicitly requested (durationSeconds > 0)
-        if (durationSeconds > 0) {
-            // Check if JMX already has a ThreadGroup duration set
-            boolean hasExistingDuration = jmxContent.contains("<longProp name=\"ThreadGroup.duration\">");
-            
-            if (hasExistingDuration) {
-                System.out.println("JMX already has ThreadGroup duration set, respecting existing configuration");
-            } else {
-                System.out.println("No ThreadGroup duration found in JMX, applying duration from parameter...");
-                jmxContent = updateJmxProperty(jmxContent, "ThreadGroup.duration", String.valueOf(durationSeconds));
-                System.out.println("Updated duration to: " + durationSeconds + " seconds");
-            }
-        } else {
-            System.out.println("Duration override disabled, respecting JMX Thread Group configuration");
-        }
         
         // Update CSV Data Set Config filename to use server storage path
         System.out.println("Updating CSV Data Set Config filename...");
@@ -136,11 +119,8 @@ public class JmxModificationService {
                 System.out.println("Updated specifyThreadLifetime to: " + specifyLifetime);
             }
             
-            // Update duration
-            if (config.containsKey("duration")) {
-                jmxContent = updateJmxProperty(jmxContent, "ThreadGroup.duration", config.get("duration").toString());
-                System.out.println("Updated duration to: " + config.get("duration"));
-            }
+            // SKIP duration update - respect JMX file's original ThreadGroup.duration
+            // The duration should come from the JMX file, not from UI config
             
             // Update startup delay
             if (config.containsKey("startupDelay")) {

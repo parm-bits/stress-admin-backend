@@ -251,12 +251,9 @@ public class SummaryReportController {
         if ("RUNNING".equals(useCase.getStatus())) {
             long elapsedSeconds = java.time.Duration.between(useCase.getTestStartedAt(), java.time.LocalDateTime.now()).getSeconds();
             
-            // Use expected duration if available, otherwise default to 300 seconds
-            long expectedDuration = useCase.getExpectedDurationSeconds() != null ? 
-                useCase.getExpectedDurationSeconds() : 300;
-            
-            int progress = (int) Math.min(99, (elapsedSeconds * 100) / expectedDuration);
-            return Math.max(1, progress); // Minimum 1% progress, maximum 99% while running
+            // Since we're respecting JMX file duration, just return elapsed seconds
+            // The frontend will handle displaying this as time (e.g., "5h 30m 3s")
+            return (int) elapsedSeconds;
         }
         
         // For other statuses (IDLE), return 0
