@@ -74,6 +74,7 @@ public class JMeterService {
         uc.setTestStartedAt(LocalDateTime.now());
         uc.setTestCompletedAt(null); // Clear previous completion time
         uc.setTestDurationSeconds(null); // Clear previous duration
+        uc.setExpectedDurationSeconds((long) durationSeconds); // Store expected duration
         uc.setUserCount(users);
         repo.save(uc);
         

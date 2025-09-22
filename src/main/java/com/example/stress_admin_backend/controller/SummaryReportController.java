@@ -86,11 +86,8 @@ public class SummaryReportController {
             System.out.println("Found JTL file: " + jtlFile);
             List<Map<String, Object>> summaryData = parseJTLFile(jtlFile);
             
-            // Calculate test progress (simple simulation for now)
-            long startTimeMillis = useCase.getLastRunAt() != null ? useCase.getLastRunAt().atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli() : System.currentTimeMillis();
-            long elapsedMillis = System.currentTimeMillis() - startTimeMillis;
-            // Assuming a 5-minute test duration for progress calculation
-            double progress = Math.min(100, (elapsedMillis / (5.0 * 60 * 1000)) * 100);
+            // Calculate test progress based on actual test timing
+            int progress = calculateTestProgress(useCase);
 
             return ResponseEntity.ok(Map.of(
                     "success", true,
@@ -127,13 +124,11 @@ public class SummaryReportController {
         }
         UseCase useCase = useCaseOpt.get();
 
-        long startTimeMillis = useCase.getLastRunAt() != null ? useCase.getLastRunAt().atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli() : System.currentTimeMillis();
-        long elapsedMillis = System.currentTimeMillis() - startTimeMillis;
-        double progress = Math.min(100, (elapsedMillis / (5.0 * 60 * 1000)) * 100); // Assuming 5-minute test
+        int progress = calculateTestProgress(useCase);
 
         return ResponseEntity.ok(Map.of(
                 "status", useCase.getStatus(),
-                "progress", (int) progress
+                "progress", progress
         ));
     }
 
@@ -247,10 +242,25 @@ public class SummaryReportController {
             return 0;
         }
         
-        long elapsedSeconds = java.time.Duration.between(useCase.getTestStartedAt(), java.time.LocalDateTime.now()).getSeconds();
-        // Assume 5-minute test duration for progress calculation
-        int progress = (int) Math.min(95, (elapsedSeconds * 100) / 300); // 300 seconds = 5 minutes
-        return Math.max(5, progress); // Minimum 5% progress
+        // If test is completed, return 100%
+        if ("SUCCESS".equals(useCase.getStatus()) || "FAILED".equals(useCase.getStatus())) {
+            return 100;
+        }
+        
+        // If test is running, calculate progress based on elapsed time
+        if ("RUNNING".equals(useCase.getStatus())) {
+            long elapsedSeconds = java.time.Duration.between(useCase.getTestStartedAt(), java.time.LocalDateTime.now()).getSeconds();
+            
+            // Use expected duration if available, otherwise default to 300 seconds
+            long expectedDuration = useCase.getExpectedDurationSeconds() != null ? 
+                useCase.getExpectedDurationSeconds() : 300;
+            
+            int progress = (int) Math.min(99, (elapsedSeconds * 100) / expectedDuration);
+            return Math.max(1, progress); // Minimum 1% progress, maximum 99% while running
+        }
+        
+        // For other statuses (IDLE), return 0
+        return 0;
     }
 
     private List<Map<String, Object>> parseJTLFile(Path jtlFile) {

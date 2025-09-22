@@ -46,6 +46,9 @@ public class UseCase {
     @Schema(description = "Duration of the last test execution in seconds", example = "300")
     private Long testDurationSeconds;
     
+    @Schema(description = "Expected duration for the test in seconds", example = "300")
+    private Long expectedDurationSeconds;
+    
     @Schema(description = "Current status of the use case", 
             example = "IDLE", 
             allowableValues = {"IDLE", "RUNNING", "SUCCESS", "FAILED"})

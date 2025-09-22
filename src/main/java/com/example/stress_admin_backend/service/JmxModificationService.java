@@ -29,10 +29,14 @@ public class JmxModificationService {
         System.out.println("Server config: " + useCase.getServerConfig());
         System.out.println("Duration: " + durationSeconds + " seconds");
         
-        // Always apply duration to ensure test runs for specified time
-        System.out.println("Applying duration configuration...");
-        jmxContent = updateJmxProperty(jmxContent, "ThreadGroup.duration", String.valueOf(durationSeconds));
-        System.out.println("Updated duration to: " + durationSeconds + " seconds");
+        // Only apply duration if no thread group configuration is provided
+        if (useCase.getThreadGroupConfig() == null || useCase.getThreadGroupConfig().isEmpty()) {
+            System.out.println("No thread group configuration provided, applying default duration...");
+            jmxContent = updateJmxProperty(jmxContent, "ThreadGroup.duration", String.valueOf(durationSeconds));
+            System.out.println("Updated duration to: " + durationSeconds + " seconds");
+        } else {
+            System.out.println("Thread group configuration provided, respecting user settings for duration");
+        }
         
         // Update CSV Data Set Config filename to use server storage path
         System.out.println("Updating CSV Data Set Config filename...");

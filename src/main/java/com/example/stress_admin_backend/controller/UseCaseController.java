@@ -686,7 +686,9 @@ public class UseCaseController {
             String modifiedJmxContent;
             if ((useCase.getThreadGroupConfig() != null && !useCase.getThreadGroupConfig().isEmpty()) ||
                 (useCase.getServerConfig() != null && !useCase.getServerConfig().isEmpty())) {
-                modifiedJmxContent = jmxModificationService.modifyJmxWithConfiguration(useCase.getJmxPath(), useCase, 300);
+                // Use expected duration if available, otherwise default to 300 seconds
+                long duration = useCase.getExpectedDurationSeconds() != null ? useCase.getExpectedDurationSeconds() : 300;
+                modifiedJmxContent = jmxModificationService.modifyJmxWithConfiguration(useCase.getJmxPath(), useCase, (int) duration);
             } else {
                 // Read original content if no configuration to apply
                 modifiedJmxContent = new String(resource.getInputStream().readAllBytes());

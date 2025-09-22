@@ -64,6 +64,7 @@ public class ConcurrentTestService {
                 useCaseRepository.save(useCase);
 
                 // Start JMeter test for this use case (default duration: 300 seconds = 5 minutes)
+                // TODO: Make duration configurable per session or use case
                 CompletableFuture<Void> future = jMeterService.runTest(useCase.getId(), useCase.getUserCount(), 300)
                     .thenAccept(result -> {
                         // Update use case status when test completes
