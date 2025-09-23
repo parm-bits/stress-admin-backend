@@ -247,16 +247,10 @@ public class SummaryReportController {
             return 100;
         }
         
-        // If test is running, calculate progress based on elapsed time
+        // If test is running, return elapsed seconds directly
         if ("RUNNING".equals(useCase.getStatus())) {
             long elapsedSeconds = java.time.Duration.between(useCase.getTestStartedAt(), java.time.LocalDateTime.now()).getSeconds();
-            
-            // Use expected duration if available, otherwise default to 300 seconds
-            long expectedDuration = useCase.getExpectedDurationSeconds() != null ? 
-                useCase.getExpectedDurationSeconds() : 300;
-            
-            int progress = (int) Math.min(99, (elapsedSeconds * 100) / expectedDuration);
-            return Math.max(1, progress); // Minimum 1% progress, maximum 99% while running
+            return (int) elapsedSeconds; // Return elapsed seconds directly for frontend to display as time
         }
         
         // For other statuses (IDLE), return 0
