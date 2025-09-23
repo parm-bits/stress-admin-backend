@@ -250,6 +250,10 @@ public class SummaryReportController {
         // If test is running, return elapsed seconds directly
         if ("RUNNING".equals(useCase.getStatus())) {
             long elapsedSeconds = java.time.Duration.between(useCase.getTestStartedAt(), java.time.LocalDateTime.now()).getSeconds();
+            System.out.println("DEBUG: Test started at: " + useCase.getTestStartedAt());
+            System.out.println("DEBUG: Current time: " + java.time.LocalDateTime.now());
+            System.out.println("DEBUG: Elapsed seconds: " + elapsedSeconds);
+            System.out.println("DEBUG: Returning progress: " + (int) elapsedSeconds);
             return (int) elapsedSeconds; // Return elapsed seconds directly for frontend to display as time
         }
         
