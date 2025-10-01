@@ -9,6 +9,7 @@ import com.example.stress_admin_backend.service.FileStorageService;
 import com.example.stress_admin_backend.service.JMeterService;
 import com.example.stress_admin_backend.service.ConcurrentTestService;
 import com.example.stress_admin_backend.service.JmxModificationService;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -679,9 +680,9 @@ public class UseCaseController {
             String modifiedJmxContent;
             if ((useCase.getThreadGroupConfig() != null && !useCase.getThreadGroupConfig().isEmpty()) ||
                 (useCase.getServerConfig() != null && !useCase.getServerConfig().isEmpty())) {
-                // Use expected duration if available, otherwise default to 300 seconds
-                long duration = useCase.getExpectedDurationSeconds() != null ? useCase.getExpectedDurationSeconds() : 300;
-                modifiedJmxContent = jmxModificationService.modifyJmxWithConfiguration(useCase.getJmxPath(), useCase, (int) duration);
+                // Extract duration from Thread Group Configuration, same as JMeterService does
+                int duration = extractDurationFromThreadGroupConfig(useCase);
+                modifiedJmxContent = jmxModificationService.modifyJmxWithConfiguration(useCase.getJmxPath(), useCase, duration);
             } else {
                 // Read original content if no configuration to apply
                 modifiedJmxContent = new String(resource.getInputStream().readAllBytes());
@@ -791,5 +792,29 @@ public class UseCaseController {
         
         public Integer getPriority() { return priority; }
         public void setPriority(Integer priority) { this.priority = priority; }
+    }
+
+    /**
+     * Extracts duration from Thread Group Configuration
+     */
+    private int extractDurationFromThreadGroupConfig(UseCase useCase) {
+        try {
+            if (useCase.getThreadGroupConfig() != null && !useCase.getThreadGroupConfig().isEmpty()) {
+                ObjectMapper objectMapper = new ObjectMapper();
+                Map<String, Object> config = objectMapper.readValue(useCase.getThreadGroupConfig(), new TypeReference<Map<String, Object>>() {});
+                
+                if (config.containsKey("duration")) {
+                    int duration = Integer.parseInt(config.get("duration").toString());
+                    System.out.println("Extracted duration from Thread Group Configuration: " + duration + " seconds");
+                    return duration;
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error extracting duration from Thread Group Configuration: " + e.getMessage());
+        }
+        
+        // Default duration if not specified in Thread Group Configuration
+        System.out.println("No duration found in Thread Group Configuration, using default: 300 seconds");
+        return 300;
     }
 }
