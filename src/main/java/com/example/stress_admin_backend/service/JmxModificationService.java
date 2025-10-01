@@ -114,6 +114,10 @@ public class JmxModificationService {
             
             // Check if duration or startup delay is configured
             boolean hasDurationOrDelay = config.containsKey("duration") || config.containsKey("startupDelay");
+            System.out.println("DEBUG: hasDurationOrDelay = " + hasDurationOrDelay);
+            System.out.println("DEBUG: config contains duration = " + config.containsKey("duration"));
+            System.out.println("DEBUG: config contains startupDelay = " + config.containsKey("startupDelay"));
+            System.out.println("DEBUG: config contains specifyThreadLifetime = " + config.containsKey("specifyThreadLifetime"));
             
             // Update specify thread lifetime - enable it if duration or startup delay is configured
             if (config.containsKey("specifyThreadLifetime")) {
@@ -125,6 +129,13 @@ public class JmxModificationService {
                 jmxContent = updateJmxProperty(jmxContent, "ThreadGroup.scheduler", "true");
                 System.out.println("Auto-enabled specifyThreadLifetime because duration or startup delay is configured");
             }
+            
+            // Force enable scheduler if duration or startup delay is configured (regardless of UI setting)
+            if (hasDurationOrDelay) {
+                jmxContent = updateJmxProperty(jmxContent, "ThreadGroup.scheduler", "true");
+                System.out.println("Force-enabled ThreadGroup.scheduler because duration/startup delay is configured");
+            }
+            
             
             // Update duration from UI Thread Group config (overrides JMX file duration)
             if (config.containsKey("duration")) {
