@@ -112,11 +112,18 @@ public class JmxModificationService {
                 System.out.println("Updated delayThreadCreation to: " + delayCreation);
             }
             
-            // Update specify thread lifetime
+            // Check if duration or startup delay is configured
+            boolean hasDurationOrDelay = config.containsKey("duration") || config.containsKey("startupDelay");
+            
+            // Update specify thread lifetime - enable it if duration or startup delay is configured
             if (config.containsKey("specifyThreadLifetime")) {
                 boolean specifyLifetime = Boolean.parseBoolean(config.get("specifyThreadLifetime").toString());
                 jmxContent = updateJmxProperty(jmxContent, "ThreadGroup.scheduler", specifyLifetime ? "true" : "false");
                 System.out.println("Updated specifyThreadLifetime to: " + specifyLifetime);
+            } else if (hasDurationOrDelay) {
+                // Auto-enable "Specify Thread lifetime" if duration or startup delay is configured
+                jmxContent = updateJmxProperty(jmxContent, "ThreadGroup.scheduler", "true");
+                System.out.println("Auto-enabled specifyThreadLifetime because duration or startup delay is configured");
             }
             
             // Update duration from UI Thread Group config (overrides JMX file duration)
