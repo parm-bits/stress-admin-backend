@@ -119,21 +119,23 @@ public class JmxModificationService {
             System.out.println("DEBUG: config contains startupDelay = " + config.containsKey("startupDelay"));
             System.out.println("DEBUG: config contains specifyThreadLifetime = " + config.containsKey("specifyThreadLifetime"));
             
-            // Update specify thread lifetime - enable it if duration or startup delay is configured
-            if (config.containsKey("specifyThreadLifetime")) {
+            // Always enable scheduler if duration or startup delay is configured
+            // This is critical to prevent infinite runtime
+            if (hasDurationOrDelay) {
+                jmxContent = updateJmxProperty(jmxContent, "ThreadGroup.scheduler", "true");
+                System.out.println("CRITICAL: Enabled ThreadGroup.scheduler to prevent infinite runtime - duration/startup delay configured");
+                
+                // Double-check: verify the scheduler was actually set
+                if (!jmxContent.contains("<boolProp name=\"ThreadGroup.scheduler\">true</boolProp>")) {
+                    // Force add scheduler property if it wasn't set
+                    jmxContent = addPropertyToJmx(jmxContent, "ThreadGroup.scheduler", "true");
+                    System.out.println("FORCE ADDED: ThreadGroup.scheduler=true property");
+                }
+            } else if (config.containsKey("specifyThreadLifetime")) {
+                // Only use UI setting if no duration/delay is specified
                 boolean specifyLifetime = Boolean.parseBoolean(config.get("specifyThreadLifetime").toString());
                 jmxContent = updateJmxProperty(jmxContent, "ThreadGroup.scheduler", specifyLifetime ? "true" : "false");
                 System.out.println("Updated specifyThreadLifetime to: " + specifyLifetime);
-            } else if (hasDurationOrDelay) {
-                // Auto-enable "Specify Thread lifetime" if duration or startup delay is configured
-                jmxContent = updateJmxProperty(jmxContent, "ThreadGroup.scheduler", "true");
-                System.out.println("Auto-enabled specifyThreadLifetime because duration or startup delay is configured");
-            }
-            
-            // Force enable scheduler if duration or startup delay is configured (regardless of UI setting)
-            if (hasDurationOrDelay) {
-                jmxContent = updateJmxProperty(jmxContent, "ThreadGroup.scheduler", "true");
-                System.out.println("Force-enabled ThreadGroup.scheduler because duration/startup delay is configured");
             }
             
             
