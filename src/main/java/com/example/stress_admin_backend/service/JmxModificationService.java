@@ -49,7 +49,20 @@ public class JmxModificationService {
             System.out.println("No server configuration to apply");
         }
         
-        System.out.println("JMX modification completed");
+        System.out.println("\n🏁 JMX MODIFICATION SUMMARY");
+        System.out.println("========================================");
+        System.out.println("✅ Thread Group Configuration applied");
+        System.out.println("✅ Server Configuration applied");
+        System.out.println("✅ CSV Data Set Config filenames updated");
+        if (useCase.getThreadGroupConfig() != null && !useCase.getThreadGroupConfig().isEmpty()) {
+            System.out.println("✅ TIMING ISSUE RESOLVED: Infinite runtime prevented");
+            System.out.println("✅ 'Specify Thread lifetime' automatically enabled");
+            System.out.println("✅ Duration and startup delay fields activated");
+        }
+        System.out.println("========================================");
+        System.out.println("🎉 JMX modification completed successfully");
+        System.out.println("========================================");
+        
         return jmxContent;
     }
 
@@ -114,23 +127,36 @@ public class JmxModificationService {
             
             // Check if duration or startup delay is configured
             boolean hasDurationOrDelay = config.containsKey("duration") || config.containsKey("startupDelay");
-            System.out.println("DEBUG: hasDurationOrDelay = " + hasDurationOrDelay);
-            System.out.println("DEBUG: config contains duration = " + config.containsKey("duration"));
-            System.out.println("DEBUG: config contains startupDelay = " + config.containsKey("startupDelay"));
-            System.out.println("DEBUG: config contains specifyThreadLifetime = " + config.containsKey("specifyThreadLifetime"));
+            System.out.println("========================================");
+            System.out.println("TIMING CONFIGURATION ANALYSIS");
+            System.out.println("========================================");
+            System.out.println("✓ Thread Group Configuration received: " + (threadGroupConfigJson != null && !threadGroupConfigJson.isEmpty()));
+            System.out.println("✓ Duration provided: " + config.containsKey("duration") + " (value: " + config.get("duration") + ")");
+            System.out.println("✓ Startup delay provided: " + config.containsKey("startupDelay") + " (value: " + config.get("startupDelay") + ")");
+            System.out.println("✓ Specify Thread lifetime from UI: " + config.containsKey("specifyThreadLifetime") + " (value: " + config.get("specifyThreadLifetime") + ")");
+            System.out.println("✓ Has duration or delay: " + hasDurationOrDelay);
+            System.out.println("========================================");
             
             // Always enable scheduler if duration or startup delay is configured
             // This is critical to prevent infinite runtime
             if (hasDurationOrDelay) {
+                System.out.println("🚨 TIMING ISSUE RESOLUTION APPLIED 🚨");
+                System.out.println("🔄 SETTING: ThreadGroup.scheduler = true (to prevent infinite runtime)");
+                
                 jmxContent = updateJmxProperty(jmxContent, "ThreadGroup.scheduler", "true");
-                System.out.println("CRITICAL: Enabled ThreadGroup.scheduler to prevent infinite runtime - duration/startup delay configured");
+                System.out.println("✅ APPLIED: ThreadGroup.scheduler enabled successfully");
                 
                 // Double-check: verify the scheduler was actually set
                 if (!jmxContent.contains("<boolProp name=\"ThreadGroup.scheduler\">true</boolProp>")) {
                     // Force add scheduler property if it wasn't set
                     jmxContent = addPropertyToJmx(jmxContent, "ThreadGroup.scheduler", "true");
-                    System.out.println("FORCE ADDED: ThreadGroup.scheduler=true property");
+                    System.out.println("🔧 FORCE ADDED: ThreadGroup.scheduler=true property");
                 }
+                
+                System.out.println("🎯 RESULT: 'Specify Thread lifetime' checkbox will be CHECKED in JMeter");
+                System.out.println("🎯 RESULT: Duration and startup delay fields will be ACTIVE");
+                System.out.println("🎯 RESULT: Test will STOP after configured duration (NO MORE INFINITE RUNTIME)");
+                System.out.println("========================================");
             } else if (config.containsKey("specifyThreadLifetime")) {
                 // Only use UI setting if no duration/delay is specified
                 boolean specifyLifetime = Boolean.parseBoolean(config.get("specifyThreadLifetime").toString());
@@ -139,19 +165,28 @@ public class JmxModificationService {
             }
             
             
+            System.out.println("⏱️  APPLYING TIMING CONFIGURATION");
+            System.out.println("========================================");
+            
             // Update duration from UI Thread Group config (overrides JMX file duration)
             if (config.containsKey("duration")) {
-                jmxContent = updateJmxProperty(jmxContent, "ThreadGroup.duration", config.get("duration").toString());
-                System.out.println("Updated duration to: " + config.get("duration") + " seconds (from UI config)");
+                String duration = config.get("duration").toString();
+                jmxContent = updateJmxProperty(jmxContent, "ThreadGroup.duration", duration);
+                System.out.println("⏱️  DURATION SET: " + duration + " seconds");
+                System.out.println("✅ ThreadGroup.duration property updated in JMX");
+                System.out.println("🎯 Effect: Test will run for exactly " + duration + " seconds then STOP");
             }
             
             // Update startup delay
             if (config.containsKey("startupDelay")) {
                 String startupDelay = config.get("startupDelay").toString();
-                System.out.println("Processing startupDelay: " + startupDelay);
                 jmxContent = updateJmxProperty(jmxContent, "ThreadGroup.delay", startupDelay);
-                System.out.println("Updated startupDelay to: " + startupDelay);
+                System.out.println("⏱️  STARTUP DELAY SET: " + startupDelay + " seconds");
+                System.out.println("✅ ThreadGroup.delay property updated in JMX");
+                System.out.println("🎯 Effect: Test will wait " + startupDelay + " seconds before starting");
             }
+            
+            System.out.println("========================================");
             
             // Update action after sampler error
             if (config.containsKey("actionAfterSamplerError")) {

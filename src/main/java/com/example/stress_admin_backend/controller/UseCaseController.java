@@ -682,7 +682,17 @@ public class UseCaseController {
                 (useCase.getServerConfig() != null && !useCase.getServerConfig().isEmpty())) {
                 // Extract duration from Thread Group Configuration, same as JMeterService does
                 int duration = extractDurationFromThreadGroupConfig(useCase);
+                System.out.println("\n📥 JMX DOWNLOAD REQUEST");
+                System.out.println("========================================");
+                System.out.println("📋 Use Case: " + useCase.getName() + " (ID: " + id + ")");
+                System.out.println("⏱️  Extracted Duration: " + duration + " seconds from Thread Group Configuration");
+                System.out.println("🔄 Applying configurations to JMX file...");
+                System.out.println("========================================");
+                
                 modifiedJmxContent = jmxModificationService.modifyJmxWithConfiguration(useCase.getJmxPath(), useCase, duration);
+                
+                System.out.println("✅ JMX Download prepared with timing configuration applied");
+                System.out.println("========================================");
             } else {
                 // Read original content if no configuration to apply
                 modifiedJmxContent = new String(resource.getInputStream().readAllBytes());
@@ -805,7 +815,8 @@ public class UseCaseController {
                 
                 if (config.containsKey("duration")) {
                     int duration = Integer.parseInt(config.get("duration").toString());
-                    System.out.println("Extracted duration from Thread Group Configuration: " + duration + " seconds");
+                    System.out.println("🎯 DURATION EXTRACTED: " + duration + " seconds from Thread Group Configuration");
+                    System.out.println("✅ This duration will be used to prevent infinite runtime");
                     return duration;
                 }
             }
