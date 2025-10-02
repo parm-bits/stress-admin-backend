@@ -137,12 +137,23 @@ public class JmxModificationService {
             System.out.println("✓ Has duration or delay: " + hasDurationOrDelay);
             System.out.println("========================================");
             
-            // Always enable scheduler if duration or startup delay is configured
-            // This is critical to prevent infinite runtime
+            // Determine scheduler setting: prioritize duration/delay, then respect UI checkbox
+            boolean enableScheduler = false;
+            
             if (hasDurationOrDelay) {
+                // Always enable scheduler if duration or startup delay is configured
+                // This is critical to prevent infinite runtime
+                enableScheduler = true;
                 System.out.println("🚨 TIMING ISSUE RESOLUTION APPLIED 🚨");
-                System.out.println("🔄 SETTING: ThreadGroup.scheduler = true (to prevent infinite runtime)");
-                
+                System.out.println("🔄 SETTING: ThreadGroup.scheduler = true (duration/delay provided)");
+            } else if (config.containsKey("specifyThreadLifetime")) {
+                // Use UI checkbox setting when no duration/delay is specified
+                enableScheduler = Boolean.parseBoolean(config.get("specifyThreadLifetime").toString());
+                System.out.println("🔄 SETTING: ThreadGroup.scheduler = " + enableScheduler + " (from UI checkbox)");
+            }
+            
+            // Apply the scheduler setting
+            if (enableScheduler) {
                 jmxContent = updateJmxProperty(jmxContent, "ThreadGroup.scheduler", "true");
                 System.out.println("✅ APPLIED: ThreadGroup.scheduler enabled successfully");
                 
@@ -155,14 +166,21 @@ public class JmxModificationService {
                 
                 System.out.println("🎯 RESULT: 'Specify Thread lifetime' checkbox will be CHECKED in JMeter");
                 System.out.println("🎯 RESULT: Duration and startup delay fields will be ACTIVE");
-                System.out.println("🎯 RESULT: Test will STOP after configured duration (NO MORE INFINITE RUNTIME)");
-                System.out.println("========================================");
-            } else if (config.containsKey("specifyThreadLifetime")) {
-                // Only use UI setting if no duration/delay is specified
-                boolean specifyLifetime = Boolean.parseBoolean(config.get("specifyThreadLifetime").toString());
-                jmxContent = updateJmxProperty(jmxContent, "ThreadGroup.scheduler", specifyLifetime ? "true" : "false");
-                System.out.println("Updated specifyThreadLifetime to: " + specifyLifetime);
+                
+                if (hasDurationOrDelay) {
+                    System.out.println("🎯 RESULT: Test will STOP after configured duration (NO MORE INFINITE RUNTIME)");
+                } else {
+                    System.out.println("🎯 RESULT: Settings enable UI fields (manual configuration in JMeter)");
+                }
+                System.out.println("✅ FINAL: ThreadGroup.scheduler = true");
+            } else {
+                jmxContent = updateJmxProperty(jmxContent, "ThreadGroup.scheduler", "false");
+                System.out.println("✅ APPLIED: ThreadGroup.scheduler disabled");
+                System.out.println("🎯 RESULT: 'Specify Thread lifetime' checkbox will be UNCHECKED in JMeter");
+                System.out.println("🎯 RESULT: Duration and startup delay fields will be INACTIVE");
+                System.out.println("✅ FINAL: ThreadGroup.scheduler = false");
             }
+            System.out.println("========================================");
             
             
             System.out.println("⏱️  APPLYING TIMING CONFIGURATION");
