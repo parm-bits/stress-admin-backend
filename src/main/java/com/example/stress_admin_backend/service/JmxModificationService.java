@@ -87,28 +87,57 @@ public class JmxModificationService {
                 System.out.println("Updated rampUpPeriod to: " + config.get("rampUpPeriod"));
             }
             
-            // Update loop count and infinite loop setting - handle them together
+            // Check if duration or startup delay is configured (this affects loop behavior)
+            boolean hasDurationOrDelay = config.containsKey("duration") || config.containsKey("startupDelay");
+            System.out.println("========================================");
+            System.out.println("LOOP CONFIGURATION PRIORITY ANALYSIS");
+            System.out.println("========================================");
+            System.out.println("✓ Duration/Delay provided: " + hasDurationOrDelay);
+            
+            // Handle loop count with priority: Duration/Delay takes precedence over infinite loop
             boolean infiniteLoop = false;
             if (config.containsKey("infiniteLoop")) {
                 infiniteLoop = Boolean.parseBoolean(config.get("infiniteLoop").toString());
-                System.out.println("Processing infiniteLoop: " + infiniteLoop);
+                System.out.println("✓ UI Set infiniteLoop: " + infiniteLoop);
             }
             
-            if (infiniteLoop) {
-                // For infinite loops, set loops to -1 and continue_forever to true
+            // CRITICAL FIX: Duration/Delay overrides infinite loop to prevent indefinite runtime
+            if (hasDurationOrDelay && infiniteLoop) {
+                System.out.println("🚨 INFINITE LOOP CONFLICT RESOLUTION 🚨");
+                System.out.println("⚠️  User set infiniteLoop=true BUT duration/delay provided");
+                System.out.println("🛡️  OVERRIDING: Disabling infinite loop to respect duration constraints");
+                System.out.println("🎯 Action: Set continue_forever=false to allow duration control");
+                
+                // Override infinite loop when duration is specified
+                String loopCount = "1"; // Use finite loops when duration is specified
+                if (config.containsKey("loopCount")) {
+                    loopCount = config.get("loopCount").toString();
+                }
+                jmxContent = updateJmxProperty(jmxContent, "LoopController.loops", loopCount);
+                jmxContent = updateJmxProperty(jmxContent, "LoopController.continue_forever", "false");
+                System.out.println("✅ APPLIED: Finite loop with duration control");
+                System.out.println("✅ SET: LoopController.loops=" + loopCount + ", continue_forever=false");
+                System.out.println("✅ RESULT: Test will STOP after specified duration");
+                infiniteLoop = false; // Override the infinite loop setting
+            } else if (infiniteLoop) {
+                // Only apply infinite loop if no duration/delay is specified
+                System.out.println("✅ APPLYING: True infinite loop (no duration constraints)");
                 jmxContent = updateJmxProperty(jmxContent, "LoopController.loops", "-1");
                 jmxContent = updateJmxProperty(jmxContent, "LoopController.continue_forever", "true");
-                System.out.println("Set infinite loop: loops=-1, continue_forever=true");
+                System.out.println("✅ SET: LoopController.loops=-1, continue_forever=true");
+                System.out.println("✅ RESULT: Test will run indefinitely");
             } else {
-                // For finite loops, use the actual loop count and set continue_forever to false
+                // Apply finite loops
+                System.out.println("✅ APPLYING: Finite loop configuration");
                 String loopCount = "1"; // default value
                 if (config.containsKey("loopCount")) {
                     loopCount = config.get("loopCount").toString();
                 }
                 jmxContent = updateJmxProperty(jmxContent, "LoopController.loops", loopCount);
                 jmxContent = updateJmxProperty(jmxContent, "LoopController.continue_forever", "false");
-                System.out.println("Set finite loop: loops=" + loopCount + ", continue_forever=false");
+                System.out.println("✅ SET: Finite loop: loops=" + loopCount + ", continue_forever=false");
             }
+            System.out.println("========================================");
             
             // Update same user on each iteration
             if (config.containsKey("sameUserOnEachIteration")) {
@@ -125,8 +154,6 @@ public class JmxModificationService {
                 System.out.println("Updated delayThreadCreation to: " + delayCreation);
             }
             
-            // Check if duration or startup delay is configured
-            boolean hasDurationOrDelay = config.containsKey("duration") || config.containsKey("startupDelay");
             System.out.println("========================================");
             System.out.println("TIMING CONFIGURATION ANALYSIS");
             System.out.println("========================================");
@@ -135,6 +162,7 @@ public class JmxModificationService {
             System.out.println("✓ Startup delay provided: " + config.containsKey("startupDelay") + " (value: " + config.get("startupDelay") + ")");
             System.out.println("✓ Specify Thread lifetime from UI: " + config.containsKey("specifyThreadLifetime") + " (value: " + config.get("specifyThreadLifetime") + ")");
             System.out.println("✓ Has duration or delay: " + hasDurationOrDelay);
+            System.out.println("✓ Loop behavior after priority: " + (infiniteLoop ? "INFINITE" : "FINITE") + " (adjusted for duration constraints)");
             System.out.println("========================================");
             
             // Determine scheduler setting: prioritize duration/delay, then respect UI checkbox
