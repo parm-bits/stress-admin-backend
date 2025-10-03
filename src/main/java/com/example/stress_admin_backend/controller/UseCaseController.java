@@ -102,7 +102,10 @@ public class UseCaseController {
             @RequestPart(value = "csvFile", required = false) MultipartFile csvFile,
             
             @Parameter(description = "Whether this use case requires a CSV file", required = false)
-            @RequestParam(value = "requiresCsv", required = false, defaultValue = "false") String requiresCsv
+            @RequestParam(value = "requiresCsv", required = false, defaultValue = "false") String requiresCsv,
+            
+            @Parameter(description = "Thread group configuration as JSON string", required = false)
+            @RequestParam(value = "threadGroupConfig", required = false) String threadGroupConfig
     ) {
         try {
             // Validate inputs
@@ -135,7 +138,9 @@ public class UseCaseController {
             String csvPath = csvFile != null ? storage.storeCsv(csvFile) : null;
 
             String userId = getCurrentUserId();
-            UseCase uc = UseCase.builder()
+            
+            // Build use case with optional thread group configuration
+            UseCase.UseCaseBuilder builder = UseCase.builder()
                     .name(name.trim())
                     .description(description != null ? description.trim() : "")
                     .jmxPath(jmxPath)
@@ -143,10 +148,34 @@ public class UseCaseController {
                     .status("IDLE")
                     .userCount(50) // Set default user count
                     .requiresCsv(requiresCsvBool)
-                    .userId(userId)
-                    .build();
-
-            UseCase saved = repo.save(uc);
+                    .userId(userId);
+            
+            // Add thread group configuration if provided
+            if (threadGroupConfig != null && !threadGroupConfig.trim().isEmpty()) {
+                builder.threadGroupConfig(threadGroupConfig.trim());
+                System.out.println("\n🔧 UPLOAD PAGE: Thread Group Configuration Received");
+                System.out.println("========================================");
+                System.out.println("📋 Use Case Name: " + name.trim());
+                
+                // Parse and analyze thread group configuration
+                try {
+                    ObjectMapper mapper = new ObjectMapper();
+                    Map<String, Object> config = mapper.readValue(threadGroupConfig, new TypeReference<Map<String, Object>>() {});
+                    analyzeThreadConfiguration(config);
+                } catch (Exception e) {
+                    System.err.println("⚠️ WARNING: Invalid thread group configuration JSON: " + e.getMessage());
+                    System.out.println("⚠️ Thread group config will be stored as string");
+                }
+                
+                System.out.println("✅ Thread Group Configuration will be applied during test execution");
+                System.out.println("🎯 Duration issue prevention: ACTIVE for upload creation");
+                System.out.println("========================================");
+            } else {
+                System.out.println("ℹ️ UPLOAD PAGE: No Thread Group Configuration provided");
+                System.out.println("ℹ️ Use case created with default thread settings");
+            }
+            
+            UseCase saved = repo.save(builder.build());
             
             // Log CSV configuration status after use case creation
             System.out.println("✅ Use Case Created Successfully!");
@@ -156,6 +185,7 @@ public class UseCaseController {
             System.out.println("   - JMX Path: " + saved.getJmxPath());
             System.out.println("   - CSV Path: " + saved.getCsvPath());
             System.out.println("   - Requires CSV: " + saved.getRequiresCsv());
+            System.out.println("   - Thread Group Config: " + (saved.getThreadGroupConfig() != null ? "PROVIDED ✅" : "NOT PROVIDED ℹ️"));
             
             if (saved.getCsvPath() != null && !saved.getCsvPath().isEmpty()) {
                 System.out.println("✅ CSV Configuration: PROPERLY CONFIGURED");
