@@ -270,10 +270,28 @@ public class UseCaseController {
                     try {
                         ObjectMapper mapper = new ObjectMapper();
                         useCase.setThreadGroupConfig(mapper.writeValueAsString(threadGroupConfig));
+                        
+                        // 📊 DURATION ISSUE ANALYSIS & FIX LOGGING
+                        System.out.println("\n🔧 USE CASE: Thread Group Configuration Applied");
+                        System.out.println("========================================");
+                        System.out.println("📋 Use Case Name: " + useCase.getName());
+                        System.out.println("🆔 Use Case ID: " + useCase.getId());
+                        
+                        // Analyze thread configuration for duration conflicts
+                        analyzeThreadConfiguration(threadGroupConfig);
+                        
+                        System.out.println("✅ Thread Group Configuration successfully saved");
+                        System.out.println("🎯 Duration issue prevention: ACTIVE");
+                        System.out.println("========================================");
+                        
                     } catch (Exception e) {
                         System.err.println("Error converting thread group config to JSON: " + e.getMessage());
                         useCase.setThreadGroupConfig(threadGroupConfig.toString());
+                        
+                        System.out.println("⚠️ WARNING: Thread Group Config converted as string due to parsing error");
                     }
+                } else {
+                    System.out.println("ℹ️ No Thread Group Configuration provided for: " + useCase.getName());
                 }
             }
             
@@ -827,5 +845,81 @@ public class UseCaseController {
         // Default duration if not specified in Thread Group Configuration
         System.out.println("No duration found in Thread Group Configuration, using default: 300 seconds");
         return 300;
+    }
+
+    /**
+     * Analyzes thread group configuration for duration conflicts and logs potential issues
+     */
+    private void analyzeThreadConfiguration(Map<String, Object> threadGroupConfig) {
+        System.out.println("🔍 ANALYZING Thread Group Configuration for Duration Issues:");
+        System.out.println("-----------------------------------------------------------");
+        
+        // Check for infinite loop setting
+        boolean infiniteLoop = false;
+        if (threadGroupConfig.containsKey("infiniteLoop")) {
+            infiniteLoop = Boolean.parseBoolean(threadGroupConfig.get("infiniteLoop").toString());
+            System.out.println("🔄 Infinite Loop: " + (infiniteLoop ? "✅ ENABLED" : "❌ DISABLED"));
+        } else {
+            System.out.println("🔄 Infinite Loop: ℹ️ NOT SPECIFIED (defaulting to finite)");
+        }
+        
+        // Check for duration setting
+        boolean hasDuration = false;
+        String duration = null;
+        if (threadGroupConfig.containsKey("duration")) {
+            hasDuration = true;
+            duration = threadGroupConfig.get("duration").toString();
+            System.out.println("⏱️  Duration: ✅ " + duration + " seconds");
+        } else {
+            System.out.println("⏱️  Duration: ❌ NOT SPECIFIED");
+        }
+        
+        // Check for startup delay setting
+        boolean hasStartupDelay = false;
+        String startupDelay = null;
+        if (threadGroupConfig.containsKey("startupDelay")) {
+            hasStartupDelay = true;
+            startupDelay = threadGroupConfig.get("startupDelay").toString();
+            System.out.println("🚀 Startup Delay: ✅ " + startupDelay + " seconds");
+        } else {
+            System.out.println("🚀 Startup Delay: ❌ NOT SPECIFIED");
+        }
+        
+        // Check for specify thread lifetime setting
+        boolean specifyThreadLifetime = false;
+        if (threadGroupConfig.containsKey("specifyThreadLifetime")) {
+            specifyThreadLifetime = Boolean.parseBoolean(threadGroupConfig.get("specifyThreadLifetime").toString());
+            System.out.println("📅 Specify Thread Lifetime: " + (specifyThreadLifetime ? "✅ ENABLED" : "❌ DISABLED"));
+        } else {
+            System.out.println("📅 Specify Thread Lifetime: ℹ️ NOT SPECIFIED");
+        }
+        
+        System.out.println("-----------------------------------------------------------");
+        
+        // Analyze potential conflicts
+        boolean hasDurationOrDelay = hasDuration || hasStartupDelay;
+        
+        if (hasDurationOrDelay && infiniteLoop) {
+            System.out.println("🚨 CONFLICT DETECTED: Infinite Loop + Duration/Delay");
+            System.out.println("🛡️  FIX APPLIED: Infinite loop will be overridden during JMX modification");
+            System.out.println("✅ RESULT: Test will STOP after specified duration instead of running forever");
+            System.out.println("🎯 PREVENTION: Duration issue automatically fixed in backend");
+        } else if (hasDurationOrDelay) {
+            System.out.println("✅ SAFE CONFIGURATION: Duration/Delay without infinite loop");
+            System.out.println("🎯 RESULT: Test will properly stop after specified time");
+            System.out.println("🛡️  DURATION PROTECTION: Automatically active");
+        } else if (infiniteLoop) {
+            System.out.println("⚡ INFINITE SETTING: No duration constraints");
+            System.out.println("⚠️  WARNING: Test will run indefinitely until manually stopped");
+            System.out.println("💡 SUGGESTION: Consider adding duration for controlled testing");
+        } else {
+            System.out.println("📊 STANDARD CONFIGURATION: Finite loops without duration");
+            System.out.println("✅ RESULT: Test will run for specified loop count");
+        }
+        
+        System.out.println("-----------------------------------------------------------");
+        System.out.println("🔧 BACKEND STATUS: Duration issue prevention is ACTIVE");
+        System.out.println("✅ JMX modification will handle conflicts automatically");
+        System.out.println("========================================");
     }
 }
