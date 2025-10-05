@@ -94,38 +94,25 @@ public class JmxModificationService {
             System.out.println("========================================");
             System.out.println("✓ Duration/Delay provided: " + hasDurationOrDelay);
             
-            // Handle loop count with priority: Duration/Delay takes precedence over infinite loop
+            // Handle loop count with priority: User's infinite loop choice takes precedence
             boolean infiniteLoop = false;
             if (config.containsKey("infiniteLoop")) {
                 infiniteLoop = Boolean.parseBoolean(config.get("infiniteLoop").toString());
                 System.out.println("✓ UI Set infiniteLoop: " + infiniteLoop);
             }
             
-            // CRITICAL FIX: Duration/Delay overrides infinite loop to prevent indefinite runtime
-            if (hasDurationOrDelay && infiniteLoop) {
-                System.out.println("🚨 INFINITE LOOP CONFLICT RESOLUTION 🚨");
-                System.out.println("⚠️  User set infiniteLoop=true BUT duration/delay provided");
-                System.out.println("🛡️  OVERRIDING: Disabling infinite loop to respect duration constraints");
-                System.out.println("🎯 Action: Set continue_forever=false to allow duration control");
-                
-                // Override infinite loop when duration is specified
-                String loopCount = "1"; // Use finite loops when duration is specified
-                if (config.containsKey("loopCount")) {
-                    loopCount = config.get("loopCount").toString();
-                }
-                jmxContent = updateJmxProperty(jmxContent, "LoopController.loops", loopCount);
-                jmxContent = updateJmxProperty(jmxContent, "LoopController.continue_forever", "false");
-                System.out.println("✅ APPLIED: Finite loop with duration control");
-                System.out.println("✅ SET: LoopController.loops=" + loopCount + ", continue_forever=false");
-                System.out.println("✅ RESULT: Test will STOP after specified duration");
-                infiniteLoop = false; // Override the infinite loop setting
-            } else if (infiniteLoop) {
-                // Only apply infinite loop if no duration/delay is specified
-                System.out.println("✅ APPLYING: True infinite loop (no duration constraints)");
+            // FIXED: Respect user's infinite loop choice even with duration/delay
+            if (infiniteLoop) {
+                System.out.println("✅ APPLYING: User requested infinite loop");
                 jmxContent = updateJmxProperty(jmxContent, "LoopController.loops", "-1");
                 jmxContent = updateJmxProperty(jmxContent, "LoopController.continue_forever", "true");
                 System.out.println("✅ SET: LoopController.loops=-1, continue_forever=true");
-                System.out.println("✅ RESULT: Test will run indefinitely");
+                if (hasDurationOrDelay) {
+                    System.out.println("⚠️  NOTE: Duration/delay provided but infinite loop takes precedence");
+                    System.out.println("✅ RESULT: Test will run indefinitely (duration ignored)");
+                } else {
+                    System.out.println("✅ RESULT: Test will run indefinitely");
+                }
             } else {
                 // Apply finite loops
                 System.out.println("✅ APPLYING: Finite loop configuration");
@@ -136,6 +123,7 @@ public class JmxModificationService {
                 jmxContent = updateJmxProperty(jmxContent, "LoopController.loops", loopCount);
                 jmxContent = updateJmxProperty(jmxContent, "LoopController.continue_forever", "false");
                 System.out.println("✅ SET: Finite loop: loops=" + loopCount + ", continue_forever=false");
+                System.out.println("✅ RESULT: Test will run " + loopCount + " iterations");
             }
             System.out.println("========================================");
             
