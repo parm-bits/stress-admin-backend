@@ -660,6 +660,34 @@ public class UseCaseController {
         }
     }
 
+    @Operation(summary = "Get running processes", description = "Get information about currently running JMeter processes (for debugging)")
+    @GetMapping("/running-processes")
+    public ResponseEntity<?> getRunningProcesses() {
+        try {
+            Map<String, Process> runningProcesses = jMeterService.getRunningProcesses();
+            Map<String, Object> response = new HashMap<>();
+            
+            for (Map.Entry<String, Process> entry : runningProcesses.entrySet()) {
+                String useCaseId = entry.getKey();
+                Process process = entry.getValue();
+                
+                Map<String, Object> processInfo = new HashMap<>();
+                processInfo.put("useCaseId", useCaseId);
+                processInfo.put("isAlive", process.isAlive());
+                processInfo.put("pid", process.pid());
+                
+                response.put(useCaseId, processInfo);
+            }
+            
+            return ResponseEntity.ok(Map.of(
+                "runningProcesses", response,
+                "count", runningProcesses.size()
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of("error", "Failed to get running processes: " + e.getMessage()));
+        }
+    }
+
     @Operation(summary = "Stop a running use case test", description = "Stop a currently running JMeter test for the specified use case")
     @ApiResponses(value = {
             @ApiResponse(responseCode = "200", description = "Test stopped successfully",

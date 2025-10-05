@@ -13,6 +13,7 @@ import java.nio.file.*;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import jakarta.annotation.PostConstruct;
 
 @Service
@@ -231,8 +232,12 @@ public class JMeterService {
             // Clean up temporary modified JMX file if it was created
             cleanupModifiedJmxFile(modifiedJmxPath, uc.getJmxPath());
             
-            // Remove from running processes
-            runningProcesses.remove(useCaseId);
+            // Only remove from running processes if it wasn't manually stopped
+            // The process will be removed by stopTest() if manually stopped
+            if (uc.getStatus().equals("COMPLETED")) {
+                runningProcesses.remove(useCaseId);
+                System.out.println("Test completed naturally, removed from running processes");
+            }
 
         } catch (Exception e) {
             uc.setStatus("FAILED");
@@ -278,8 +283,11 @@ public class JMeterService {
                 System.err.println("Failed to write error log: " + logError.getMessage());
             }
             
-            // Remove from running processes
-            runningProcesses.remove(useCaseId);
+            // Only remove from running processes if it wasn't manually stopped
+            if (uc.getStatus().equals("FAILED")) {
+                runningProcesses.remove(useCaseId);
+                System.out.println("Test failed naturally, removed from running processes");
+            }
         }
 
         return CompletableFuture.completedFuture(null);
@@ -379,20 +387,123 @@ public class JMeterService {
     }
 
     public void stopTest(String useCaseId) {
+        System.out.println("=== STOP TEST REQUEST ===");
+        System.out.println("Use Case ID: " + useCaseId);
+        System.out.println("Current running processes: " + runningProcesses.keySet());
+        
         Process process = runningProcesses.get(useCaseId);
-        if (process != null && process.isAlive()) {
-            try {
-                System.out.println("Stopping JMeter test for use case: " + useCaseId);
-                process.destroyForcibly();
+        if (process != null) {
+            System.out.println("Found process for use case: " + useCaseId);
+            System.out.println("Process is alive: " + process.isAlive());
+            System.out.println("Process PID: " + process.pid());
+            
+            if (process.isAlive()) {
+                try {
+                    System.out.println("Attempting to stop JMeter test for use case: " + useCaseId);
+                    
+                    // First try graceful shutdown
+                    process.destroy();
+                    
+                    // Wait a bit for graceful shutdown
+                    boolean terminated = process.waitFor(5, TimeUnit.SECONDS);
+                    
+                    if (!terminated) {
+                        System.out.println("Graceful shutdown failed, forcing termination...");
+                        process.destroyForcibly();
+                        
+                        // Wait for forced termination
+                        terminated = process.waitFor(5, TimeUnit.SECONDS);
+                        if (!terminated) {
+                            System.err.println("WARNING: Could not terminate process even with destroyForcibly()");
+                        }
+                    }
+                    
+                    runningProcesses.remove(useCaseId);
+                    System.out.println("✅ JMeter test stopped successfully for use case: " + useCaseId);
+                    
+                    // Update use case status to STOPPED
+                    Optional<UseCase> useCaseOpt = repo.findById(useCaseId);
+                    if (useCaseOpt.isPresent()) {
+                        UseCase useCase = useCaseOpt.get();
+                        useCase.setStatus("STOPPED");
+                        useCase.setLastRunAt(LocalDateTime.now());
+                        useCase.setTestCompletedAt(LocalDateTime.now());
+                        
+                        // Calculate test duration
+                        if (useCase.getTestStartedAt() != null) {
+                            long actualDurationSeconds = java.time.Duration.between(useCase.getTestStartedAt(), useCase.getTestCompletedAt()).getSeconds();
+                            useCase.setTestDurationSeconds(actualDurationSeconds);
+                            System.out.println("Test stopped after: " + actualDurationSeconds + " seconds (" + formatDuration(actualDurationSeconds) + ")");
+                        }
+                        
+                        repo.save(useCase);
+                        System.out.println("✅ Use case status updated to STOPPED");
+                    }
+                    
+                } catch (Exception e) {
+                    System.err.println("❌ Error stopping JMeter test for use case: " + useCaseId + ": " + e.getMessage());
+                    e.printStackTrace();
+                    
+                    // Try to remove from running processes even if there was an error
+                    runningProcesses.remove(useCaseId);
+                }
+            } else {
+                System.out.println("Process is not alive, removing from running processes");
                 runningProcesses.remove(useCaseId);
-                System.out.println("JMeter test stopped for use case: " + useCaseId);
-            } catch (Exception e) {
-                System.err.println("Error stopping JMeter test for use case: " + useCaseId + ": " + e.getMessage());
-                e.printStackTrace();
             }
         } else {
-            System.out.println("No running process found for use case: " + useCaseId);
+            System.out.println("❌ No running process found for use case: " + useCaseId);
+            System.out.println("Available processes: " + runningProcesses.keySet());
+            
+            // Try to find any JMeter processes running for this use case
+            try {
+                System.out.println("Attempting to find and kill JMeter processes by name...");
+                killJmeterProcessesByName(useCaseId);
+            } catch (Exception e) {
+                System.err.println("Error killing JMeter processes by name: " + e.getMessage());
+            }
         }
+        System.out.println("=== STOP TEST COMPLETE ===");
+    }
+    
+    /**
+     * Kill JMeter processes by searching for processes with specific patterns
+     */
+    private void killJmeterProcessesByName(String useCaseId) {
+        try {
+            String os = System.getProperty("os.name").toLowerCase();
+            
+            if (os.contains("win")) {
+                // Windows: Use taskkill command
+                ProcessBuilder pb = new ProcessBuilder("taskkill", "/f", "/im", "java.exe");
+                Process killProcess = pb.start();
+                int exitCode = killProcess.waitFor();
+                System.out.println("Windows JMeter process kill result: " + exitCode);
+            } else {
+                // Linux/Unix: Use pkill command
+                ProcessBuilder pb = new ProcessBuilder("pkill", "-f", "jmeter");
+                Process killProcess = pb.start();
+                int exitCode = killProcess.waitFor();
+                System.out.println("Linux JMeter process kill result: " + exitCode);
+            }
+        } catch (Exception e) {
+            System.err.println("Error killing JMeter processes by name: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Get all currently running processes (for debugging)
+     */
+    public Map<String, Process> getRunningProcesses() {
+        return new HashMap<>(runningProcesses);
+    }
+    
+    /**
+     * Check if a use case is currently running
+     */
+    public boolean isUseCaseRunning(String useCaseId) {
+        Process process = runningProcesses.get(useCaseId);
+        return process != null && process.isAlive();
     }
 
     private List<String> buildJMeterCommand(String... args) {
