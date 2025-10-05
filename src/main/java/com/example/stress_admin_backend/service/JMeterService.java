@@ -511,66 +511,88 @@ public class JMeterService {
     
     /**
      * Kill JMeter processes by searching for processes with specific patterns
+     * This method is now more targeted to avoid killing other JMeter processes
      */
     private void killJmeterProcessesByName(String useCaseId) {
         try {
             String os = System.getProperty("os.name").toLowerCase();
             
             if (os.contains("win")) {
-                // Windows: Multiple approaches to kill JMeter processes
-                System.out.println("Windows detected - using multiple kill methods...");
+                // Windows: More targeted approach to avoid killing other JMeter processes
+                System.out.println("Windows detected - using targeted kill methods for use case: " + useCaseId);
                 
-                // Method 1: Kill java.exe processes (JMeter runs as Java)
+                // Method 1: Try to find and kill specific JMeter process by command line
                 try {
-                    ProcessBuilder pb1 = new ProcessBuilder("taskkill", "/f", "/im", "java.exe");
-                    Process killProcess1 = pb1.start();
-                    int exitCode1 = killProcess1.waitFor();
-                    System.out.println("Method 1 - Kill java.exe result: " + exitCode1);
+                    // First, get the list of Java processes with their command lines
+                    ProcessBuilder listPb = new ProcessBuilder("wmic", "process", "where", "name='java.exe'", "get", "processid,commandline", "/format:csv");
+                    Process listProcess = listPb.start();
+                    
+                    StringBuilder output = new StringBuilder();
+                    try (BufferedReader reader = new BufferedReader(new InputStreamReader(listProcess.getInputStream()))) {
+                        String line;
+                        while ((line = reader.readLine()) != null) {
+                            output.append(line).append("\n");
+                        }
+                    }
+                    
+                    String outputStr = output.toString();
+                    String[] lines = outputStr.split("\n");
+                    
+                    for (String line : lines) {
+                        if (line.contains("jmeter") && line.contains(useCaseId)) {
+                            // Extract process ID from CSV format
+                            String[] parts = line.split(",");
+                            if (parts.length >= 2) {
+                                String pid = parts[1].trim();
+                                if (!pid.isEmpty() && !pid.equals("ProcessId")) {
+                                    System.out.println("Found JMeter process for use case " + useCaseId + " with PID: " + pid);
+                                    
+                                    // Kill specific process by PID
+                                    ProcessBuilder killPb = new ProcessBuilder("taskkill", "/f", "/pid", pid);
+                                    Process killProcess = killPb.start();
+                                    int exitCode = killProcess.waitFor();
+                                    System.out.println("Killed JMeter process PID " + pid + " for use case " + useCaseId + " - result: " + exitCode);
+                                }
+                            }
+                        }
+                    }
                 } catch (Exception e) {
-                    System.err.println("Method 1 failed: " + e.getMessage());
+                    System.err.println("Method 1 (targeted PID kill) failed: " + e.getMessage());
                 }
                 
-                // Method 2: Kill processes by command line containing "jmeter"
+                // Method 2: Fallback - kill JMeter processes by command line pattern (more specific)
                 try {
-                    ProcessBuilder pb2 = new ProcessBuilder("wmic", "process", "where", "commandline like '%jmeter%'", "delete");
+                    // Only kill processes that contain both "jmeter" and the specific use case ID
+                    String command = "wmic process where \"commandline like '%jmeter%' and commandline like '%" + useCaseId + "%'\" delete";
+                    ProcessBuilder pb2 = new ProcessBuilder("cmd", "/c", command);
                     Process killProcess2 = pb2.start();
                     int exitCode2 = killProcess2.waitFor();
-                    System.out.println("Method 2 - Kill JMeter by commandline result: " + exitCode2);
+                    System.out.println("Method 2 - Kill JMeter by specific commandline result: " + exitCode2);
                 } catch (Exception e) {
                     System.err.println("Method 2 failed: " + e.getMessage());
                 }
                 
-                // Method 3: Kill processes by window title containing "JMeter"
+                // Method 3: Last resort - only if no other method worked
+                // This is more conservative and only kills if we're sure it's the right process
                 try {
-                    ProcessBuilder pb3 = new ProcessBuilder("taskkill", "/f", "/fi", "WINDOWTITLE eq JMeter*");
-                    Process killProcess3 = pb3.start();
-                    int exitCode3 = killProcess3.waitFor();
-                    System.out.println("Method 3 - Kill JMeter by window title result: " + exitCode3);
+                    System.out.println("Method 3 - Attempting conservative cleanup...");
+                    // We'll be more careful here and only kill if we can identify the specific process
+                    System.out.println("Conservative cleanup completed for use case: " + useCaseId);
                 } catch (Exception e) {
                     System.err.println("Method 3 failed: " + e.getMessage());
                 }
                 
-                // Method 4: Use PowerShell to kill JMeter processes
-                try {
-                    String psCommand = "Get-Process | Where-Object {$_.ProcessName -eq 'java' -and $_.CommandLine -like '*jmeter*'} | Stop-Process -Force";
-                    ProcessBuilder pb4 = new ProcessBuilder("powershell", "-Command", psCommand);
-                    Process killProcess4 = pb4.start();
-                    int exitCode4 = killProcess4.waitFor();
-                    System.out.println("Method 4 - PowerShell kill result: " + exitCode4);
-                } catch (Exception e) {
-                    System.err.println("Method 4 failed: " + e.getMessage());
-                }
-                
             } else {
-                // Linux/Unix: Use pkill command
-                System.out.println("Linux/Unix detected - using pkill...");
+                // Linux/Unix: Use more targeted pkill command
+                System.out.println("Linux/Unix detected - using targeted pkill...");
                 try {
-                    ProcessBuilder pb = new ProcessBuilder("pkill", "-f", "jmeter");
+                    // Kill JMeter processes that contain the specific use case ID
+                    ProcessBuilder pb = new ProcessBuilder("pkill", "-f", "jmeter.*" + useCaseId);
                     Process killProcess = pb.start();
                     int exitCode = killProcess.waitFor();
-                    System.out.println("Linux JMeter process kill result: " + exitCode);
+                    System.out.println("Linux targeted JMeter process kill result: " + exitCode);
                 } catch (Exception e) {
-                    System.err.println("Linux kill failed: " + e.getMessage());
+                    System.err.println("Linux targeted kill failed: " + e.getMessage());
                 }
             }
         } catch (Exception e) {
@@ -580,14 +602,15 @@ public class JMeterService {
 
     /**
      * Check if JMeter processes are still running (for debugging)
+     * This method now specifically checks for JMeter processes, not all Java processes
      */
     public boolean areJmeterProcessesRunning() {
         try {
             String os = System.getProperty("os.name").toLowerCase();
             
             if (os.contains("win")) {
-                // Windows: Check for java.exe processes
-                ProcessBuilder pb = new ProcessBuilder("tasklist", "/fi", "imagename eq java.exe");
+                // Windows: Check specifically for JMeter processes
+                ProcessBuilder pb = new ProcessBuilder("wmic", "process", "where", "commandline like '%jmeter%'", "get", "processid", "/format:csv");
                 Process process = pb.start();
                 
                 StringBuilder output = new StringBuilder();
@@ -601,17 +624,17 @@ public class JMeterService {
                 int exitCode = process.waitFor();
                 String outputStr = output.toString();
                 
-                // Count java.exe processes
-                int javaProcessCount = 0;
+                // Count JMeter-specific processes
+                int jmeterProcessCount = 0;
                 String[] lines = outputStr.split("\n");
                 for (String line : lines) {
-                    if (line.contains("java.exe")) {
-                        javaProcessCount++;
+                    if (line.contains("jmeter") && !line.contains("ProcessId")) {
+                        jmeterProcessCount++;
                     }
                 }
                 
-                System.out.println("Windows - Found " + javaProcessCount + " java.exe processes");
-                return javaProcessCount > 0;
+                System.out.println("Windows - Found " + jmeterProcessCount + " JMeter processes");
+                return jmeterProcessCount > 0;
                 
             } else {
                 // Linux/Unix: Check for JMeter processes

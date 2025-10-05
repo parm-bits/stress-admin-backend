@@ -660,11 +660,11 @@ public class UseCaseController {
         }
     }
 
-    @Operation(summary = "Force kill all JMeter processes", description = "Aggressively kill all JMeter processes (for debugging)")
-    @PostMapping("/force-kill-jmeter")
-    public ResponseEntity<?> forceKillJmeter() {
+    @Operation(summary = "Force kill specific JMeter process", description = "Aggressively kill JMeter process for specific use case (for debugging)")
+    @PostMapping("/force-kill-jmeter/{useCaseId}")
+    public ResponseEntity<?> forceKillJmeter(@PathVariable String useCaseId) {
         try {
-            System.out.println("=== FORCE KILL JMETER REQUEST ===");
+            System.out.println("=== FORCE KILL JMETER REQUEST FOR USE CASE: " + useCaseId + " ===");
             
             // Check current JMeter processes
             boolean wereRunning = jMeterService.areJmeterProcessesRunning();
@@ -674,24 +674,23 @@ public class UseCaseController {
             Map<String, Process> runningProcesses = jMeterService.getRunningProcesses();
             System.out.println("Our tracked processes: " + runningProcesses.keySet());
             
-            // Force kill all JMeter processes
-            for (String useCaseId : runningProcesses.keySet()) {
-                System.out.println("Force killing process for use case: " + useCaseId);
-                jMeterService.stopTest(useCaseId);
-            }
+            // Force kill specific JMeter process
+            System.out.println("Force killing process for use case: " + useCaseId);
+            jMeterService.stopTest(useCaseId);
             
             // Wait a bit and check again
             Thread.sleep(3000);
             boolean stillRunning = jMeterService.areJmeterProcessesRunning();
             
             return ResponseEntity.ok(Map.of(
-                "message", "Force kill completed",
+                "message", "Force kill completed for use case: " + useCaseId,
+                "useCaseId", useCaseId,
                 "wereRunning", wereRunning,
                 "stillRunning", stillRunning,
                 "trackedProcesses", runningProcesses.size()
             ));
         } catch (Exception e) {
-            return ResponseEntity.internalServerError().body(Map.of("error", "Failed to force kill JMeter: " + e.getMessage()));
+            return ResponseEntity.internalServerError().body(Map.of("error", "Failed to force kill JMeter for use case " + useCaseId + ": " + e.getMessage()));
         }
     }
 
