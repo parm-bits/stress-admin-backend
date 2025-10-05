@@ -46,22 +46,21 @@ public class UserController {
         System.out.println("User creation request received: " + createUserRequest);
         
         String username = createUserRequest.get("username");
-        String email = createUserRequest.get("email");
         String password = createUserRequest.get("password");
         String fullName = createUserRequest.get("fullName");
         String role = createUserRequest.getOrDefault("role", "USER");
         
-        System.out.println("Parsed fields - Username: " + username + ", Email: " + email + ", FullName: " + fullName + ", Role: " + role);
+        System.out.println("Parsed fields - Username: " + username + ", FullName: " + fullName + ", Role: " + role);
         
-        if (username == null || email == null || password == null || fullName == null) {
+        if (username == null || password == null || fullName == null) {
             System.out.println("Missing required fields");
             return ResponseEntity.badRequest().body(Map.of(
                     "success", false,
-                    "message", "All fields are required"
+                    "message", "Username, password, and full name are required"
             ));
         }
         
-        Map<String, Object> result = userService.createUser(username, email, password, fullName, role);
+        Map<String, Object> result = userService.createUser(username, password, fullName, role);
         
         System.out.println("User creation result: " + result);
         

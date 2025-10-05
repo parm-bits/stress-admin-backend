@@ -21,14 +21,14 @@ public class DataInitializer implements CommandLineRunner {
             User admin = User.builder()
                     .username("admin")
                     .email("admin@stress-admin.com")
-                    .password(passwordEncoder.encode("admin123"))
+                    .password(passwordEncoder.encode("pyr@mid109"))
                     .fullName("Administrator")
                     .role("ADMIN")
                     .status("ACTIVE")
                     .build();
             
             userRepository.save(admin);
-            System.out.println("Default admin user created: admin/admin123");
+            System.out.println("Default admin user created: admin/pyr@mid109");
         }
         
         // Create default test user if it doesn't exist

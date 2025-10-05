@@ -19,24 +19,17 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     
-    public Map<String, Object> createUser(String username, String email, String password, String fullName, String role) {
+    public Map<String, Object> createUser(String username, String password, String fullName, String role) {
         Map<String, Object> response = new HashMap<>();
         
         try {
-            System.out.println("User creation attempt for username: " + username + ", email: " + email + ", role: " + role);
+            System.out.println("User creation attempt for username: " + username + ", role: " + role);
             
             // Check if user already exists
             if (userRepository.existsByUsername(username)) {
                 System.out.println("Username already exists: " + username);
                 response.put("success", false);
                 response.put("message", "Username already exists");
-                return response;
-            }
-            
-            if (userRepository.existsByEmail(email)) {
-                System.out.println("Email already exists: " + email);
-                response.put("success", false);
-                response.put("message", "Email already exists");
                 return response;
             }
             
@@ -50,7 +43,7 @@ public class UserService {
             // Create new user
             User user = User.builder()
                     .username(username)
-                    .email(email)
+                    .email(username + "@stress-admin.local") // Auto-generate email
                     .password(passwordEncoder.encode(password))
                     .fullName(fullName)
                     .role(role)
