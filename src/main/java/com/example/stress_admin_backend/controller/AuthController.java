@@ -58,47 +58,6 @@ public class AuthController {
         }
     }
     
-    @Operation(summary = "User registration", description = "Register a new user account")
-    @ApiResponses(value = {
-            @ApiResponse(responseCode = "200", description = "Registration successful",
-                    content = @Content(mediaType = "application/json",
-                            examples = @ExampleObject(value = "{\"success\":true,\"message\":\"User registered successfully\"}"))),
-            @ApiResponse(responseCode = "400", description = "Registration failed",
-                    content = @Content(mediaType = "application/json",
-                            examples = @ExampleObject(value = "{\"success\":false,\"message\":\"Username already exists\"}")))
-    })
-    @PostMapping("/register")
-    public ResponseEntity<Map<String, Object>> register(
-            @Parameter(description = "Registration request with user details", required = true)
-            @RequestBody Map<String, String> registerRequest) {
-        
-        System.out.println("Registration request received: " + registerRequest);
-        
-        String username = registerRequest.get("username");
-        String email = registerRequest.get("email");
-        String password = registerRequest.get("password");
-        String fullName = registerRequest.get("fullName");
-        
-        System.out.println("Parsed fields - Username: " + username + ", Email: " + email + ", FullName: " + fullName);
-        
-        if (username == null || email == null || password == null || fullName == null) {
-            System.out.println("Missing required fields");
-            return ResponseEntity.badRequest().body(Map.of(
-                    "success", false,
-                    "message", "All fields are required"
-            ));
-        }
-        
-        Map<String, Object> result = authService.register(username, email, password, fullName);
-        
-        System.out.println("Registration result: " + result);
-        
-        if ((Boolean) result.get("success")) {
-            return ResponseEntity.ok(result);
-        } else {
-            return ResponseEntity.badRequest().body(result);
-        }
-    }
     
     @Operation(summary = "Validate token", description = "Validate JWT token and get user info")
     @ApiResponses(value = {

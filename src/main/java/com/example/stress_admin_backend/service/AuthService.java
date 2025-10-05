@@ -59,56 +59,6 @@ public class AuthService {
         }
     }
     
-    public Map<String, Object> register(String username, String email, String password, String fullName) {
-        Map<String, Object> response = new HashMap<>();
-        
-        try {
-            System.out.println("Registration attempt for username: " + username + ", email: " + email);
-            
-            // Check if user already exists
-            if (userRepository.existsByUsername(username)) {
-                System.out.println("Username already exists: " + username);
-                response.put("success", false);
-                response.put("message", "Username already exists");
-                return response;
-            }
-            
-            if (userRepository.existsByEmail(email)) {
-                System.out.println("Email already exists: " + email);
-                response.put("success", false);
-                response.put("message", "Email already exists");
-                return response;
-            }
-            
-            // Create new user
-            User user = User.builder()
-                    .username(username)
-                    .email(email)
-                    .password(passwordEncoder.encode(password))
-                    .fullName(fullName)
-                    .role("USER")
-                    .status("ACTIVE")
-                    .createdAt(LocalDateTime.now())
-                    .build();
-            
-            System.out.println("Saving user to database...");
-            User savedUser = userRepository.save(user);
-            System.out.println("User saved successfully with ID: " + savedUser.getId());
-            
-            response.put("success", true);
-            response.put("message", "User registered successfully");
-            response.put("username", username);
-            
-            return response;
-            
-        } catch (Exception e) {
-            System.err.println("Registration error: " + e.getMessage());
-            e.printStackTrace();
-            response.put("success", false);
-            response.put("message", "Registration failed: " + e.getMessage());
-            return response;
-        }
-    }
     
     public Map<String, Object> validateToken(String token) {
         Map<String, Object> response = new HashMap<>();
