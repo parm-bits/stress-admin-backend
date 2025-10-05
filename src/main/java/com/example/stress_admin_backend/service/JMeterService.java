@@ -72,11 +72,20 @@ public class JMeterService {
         }
 
         UseCase uc = opt.get();
+        
+        // Clear all previous timing data to ensure fresh start
+        System.out.println("🔄 Clearing previous test timing data...");
+        System.out.println("🕐 Previous testStartedAt: " + uc.getTestStartedAt());
+        System.out.println("🕐 Previous testCompletedAt: " + uc.getTestCompletedAt());
+        System.out.println("🕐 Previous testDurationSeconds: " + uc.getTestDurationSeconds());
+        
         uc.setStatus("RUNNING");
         uc.setLastRunAt(LocalDateTime.now());
-        uc.setTestStartedAt(LocalDateTime.now());
+        uc.setTestStartedAt(LocalDateTime.now()); // Set current time as test start time
         uc.setTestCompletedAt(null); // Clear previous completion time
         uc.setTestDurationSeconds(null); // Clear previous duration
+        
+        System.out.println("🕐 Setting NEW test start time to: " + uc.getTestStartedAt());
         
         // Extract duration from Thread Group Configuration
         int durationSeconds = extractDurationFromThreadGroupConfig(uc);
@@ -213,6 +222,8 @@ public class JMeterService {
             if (uc.getTestStartedAt() != null) {
                 long actualDurationSeconds = java.time.Duration.between(uc.getTestStartedAt(), testEndTime).getSeconds();
                 uc.setTestDurationSeconds(actualDurationSeconds);
+                System.out.println("🕐 Test started at: " + uc.getTestStartedAt());
+                System.out.println("🕐 Test completed at: " + testEndTime);
                 System.out.println("Test duration: " + actualDurationSeconds + " seconds (" + formatDuration(actualDurationSeconds) + ")");
             }
             
@@ -432,11 +443,14 @@ public class JMeterService {
                         useCase.setStatus("STOPPED");
                         useCase.setLastRunAt(LocalDateTime.now());
                         useCase.setTestCompletedAt(LocalDateTime.now());
+                        // Don't clear testStartedAt here - we need it to calculate duration
                         
                         // Calculate test duration
                         if (useCase.getTestStartedAt() != null) {
                             long actualDurationSeconds = java.time.Duration.between(useCase.getTestStartedAt(), useCase.getTestCompletedAt()).getSeconds();
                             useCase.setTestDurationSeconds(actualDurationSeconds);
+                            System.out.println("🕐 Test started at: " + useCase.getTestStartedAt());
+                            System.out.println("🕐 Test stopped at: " + useCase.getTestCompletedAt());
                             System.out.println("Test stopped after: " + actualDurationSeconds + " seconds (" + formatDuration(actualDurationSeconds) + ")");
                         }
                         
@@ -475,6 +489,8 @@ public class JMeterService {
                 if (useCase.getTestStartedAt() != null) {
                     long actualDurationSeconds = java.time.Duration.between(useCase.getTestStartedAt(), useCase.getTestCompletedAt()).getSeconds();
                     useCase.setTestDurationSeconds(actualDurationSeconds);
+                    System.out.println("🕐 Test started at: " + useCase.getTestStartedAt());
+                    System.out.println("🕐 Test stopped at: " + useCase.getTestCompletedAt());
                     System.out.println("Test stopped after: " + actualDurationSeconds + " seconds (" + formatDuration(actualDurationSeconds) + ")");
                 }
                 
