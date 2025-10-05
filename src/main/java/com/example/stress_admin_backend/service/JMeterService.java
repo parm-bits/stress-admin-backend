@@ -10,7 +10,7 @@ import org.springframework.stereotype.Service;
 
 import java.io.*;
 import java.nio.file.*;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -80,8 +80,8 @@ public class JMeterService {
         System.out.println("🕐 Previous testDurationSeconds: " + uc.getTestDurationSeconds());
         
         uc.setStatus("RUNNING");
-        uc.setLastRunAt(LocalDateTime.now());
-        uc.setTestStartedAt(LocalDateTime.now()); // Set current time as test start time
+        uc.setLastRunAt(Instant.now());
+        uc.setTestStartedAt(Instant.now()); // Set current time as test start time
         uc.setTestCompletedAt(null); // Clear previous completion time
         uc.setTestDurationSeconds(null); // Clear previous duration
         
@@ -99,7 +99,7 @@ public class JMeterService {
         Path jmeterExecutable = findValidJmeterPath();
         if (jmeterExecutable == null) {
             uc.setStatus("FAILED");
-            uc.setLastRunAt(LocalDateTime.now());
+            uc.setLastRunAt(Instant.now());
             repo.save(uc);
             System.err.println("JMeter executable not found at: " + jmeterPath);
             System.err.println("Tried alternative paths but none were valid.");
@@ -109,7 +109,7 @@ public class JMeterService {
         // Check if JMeter is executable
         if (!Files.isReadable(jmeterExecutable)) {
             uc.setStatus("FAILED");
-            uc.setLastRunAt(LocalDateTime.now());
+            uc.setLastRunAt(Instant.now());
             repo.save(uc);
             System.err.println("JMeter executable is not readable at: " + jmeterPath);
             return CompletableFuture.completedFuture(null);
@@ -124,7 +124,7 @@ public class JMeterService {
             Path jmxFile = Paths.get(jmx);
             if (!Files.exists(jmxFile)) {
                 uc.setStatus("FAILED");
-                uc.setLastRunAt(LocalDateTime.now());
+                uc.setLastRunAt(Instant.now());
                 repo.save(uc);
                 System.err.println("JMX file not found: " + jmx);
                 return CompletableFuture.completedFuture(null);
@@ -135,7 +135,7 @@ public class JMeterService {
                 Path csvFile = Paths.get(csv);
                 if (!Files.exists(csvFile)) {
                     uc.setStatus("FAILED");
-                    uc.setLastRunAt(LocalDateTime.now());
+                    uc.setLastRunAt(Instant.now());
                     repo.save(uc);
                     System.err.println("CSV file not found: " + csv);
                     return CompletableFuture.completedFuture(null);
@@ -216,7 +216,7 @@ public class JMeterService {
             System.out.println("JMeter process exited with code: " + exit);
             
             // Calculate test duration
-            LocalDateTime testEndTime = LocalDateTime.now();
+            Instant testEndTime = Instant.now();
             uc.setTestCompletedAt(testEndTime);
             
             if (uc.getTestStartedAt() != null) {
@@ -237,7 +237,7 @@ public class JMeterService {
                 System.err.println("JMeter test failed with exit code: " + exit + " for use case: " + uc.getName() + " (ID: " + useCaseId + ")");
             }
 
-            uc.setLastRunAt(LocalDateTime.now());
+            uc.setLastRunAt(Instant.now());
             repo.save(uc);
             
             // Clean up temporary modified JMX file if it was created
@@ -252,10 +252,10 @@ public class JMeterService {
 
         } catch (Exception e) {
             uc.setStatus("FAILED");
-            uc.setLastRunAt(LocalDateTime.now());
+            uc.setLastRunAt(Instant.now());
             
             // Calculate test duration even for failed tests
-            LocalDateTime testEndTime = LocalDateTime.now();
+            Instant testEndTime = Instant.now();
             uc.setTestCompletedAt(testEndTime);
             
             if (uc.getTestStartedAt() != null) {
@@ -285,7 +285,7 @@ public class JMeterService {
                 try (BufferedWriter writer = Files.newBufferedWriter(errorLog, StandardOpenOption.CREATE)) {
                     writer.write("JMeter Test Execution Failed\n");
                     writer.write("Use Case ID: " + useCaseId + "\n");
-                    writer.write("Timestamp: " + LocalDateTime.now() + "\n");
+                    writer.write("Timestamp: " + Instant.now() + "\n");
                     writer.write("Error: " + e.getMessage() + "\n");
                     writer.write("Stack Trace:\n");
                     e.printStackTrace(new PrintWriter(writer));
@@ -441,8 +441,8 @@ public class JMeterService {
                     if (useCaseOpt.isPresent()) {
                         UseCase useCase = useCaseOpt.get();
                         useCase.setStatus("STOPPED");
-                        useCase.setLastRunAt(LocalDateTime.now());
-                        useCase.setTestCompletedAt(LocalDateTime.now());
+                        useCase.setLastRunAt(Instant.now());
+                        useCase.setTestCompletedAt(Instant.now());
                         // Don't clear testStartedAt here - we need it to calculate duration
                         
                         // Calculate test duration
@@ -482,8 +482,8 @@ public class JMeterService {
             if (useCaseOpt.isPresent()) {
                 UseCase useCase = useCaseOpt.get();
                 useCase.setStatus("STOPPED");
-                useCase.setLastRunAt(LocalDateTime.now());
-                useCase.setTestCompletedAt(LocalDateTime.now());
+                useCase.setLastRunAt(Instant.now());
+                useCase.setTestCompletedAt(Instant.now());
                 
                 // Calculate test duration
                 if (useCase.getTestStartedAt() != null) {

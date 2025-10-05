@@ -196,7 +196,7 @@ public class SummaryReportController {
         // Calculate elapsed time since test started
         long elapsedSeconds = 0;
         if (useCase.getTestStartedAt() != null) {
-            elapsedSeconds = java.time.Duration.between(useCase.getTestStartedAt(), java.time.LocalDateTime.now()).getSeconds();
+            elapsedSeconds = java.time.Duration.between(useCase.getTestStartedAt(), java.time.Instant.now()).getSeconds();
         }
         
         // Generate realistic live data based on elapsed time
@@ -249,14 +249,14 @@ public class SummaryReportController {
         
         // If test is running, calculate progress based on expected duration from Thread Group Configuration
         if ("RUNNING".equals(useCase.getStatus())) {
-            long elapsedSeconds = java.time.Duration.between(useCase.getTestStartedAt(), java.time.LocalDateTime.now()).getSeconds();
+            long elapsedSeconds = java.time.Duration.between(useCase.getTestStartedAt(), java.time.Instant.now()).getSeconds();
             long expectedDuration = useCase.getExpectedDurationSeconds() != null ? useCase.getExpectedDurationSeconds() : 300; // Default 300 seconds
             
             // Calculate progress percentage (0-100)
             int progress = (int) Math.min(100, (elapsedSeconds * 100) / expectedDuration);
             
             System.out.println("DEBUG: Test started at: " + useCase.getTestStartedAt());
-            System.out.println("DEBUG: Current time: " + java.time.LocalDateTime.now());
+            System.out.println("DEBUG: Current time: " + java.time.Instant.now());
             System.out.println("DEBUG: Elapsed seconds: " + elapsedSeconds);
             System.out.println("DEBUG: Expected duration: " + expectedDuration + " seconds");
             System.out.println("DEBUG: Progress: " + progress + "%");

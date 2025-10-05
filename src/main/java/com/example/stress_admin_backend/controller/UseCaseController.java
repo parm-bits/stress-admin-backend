@@ -30,7 +30,7 @@ import org.springframework.web.multipart.MultipartFile;
 import com.example.stress_admin_backend.security.CustomUserPrincipal;
 
 import java.net.URI;
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -752,7 +752,7 @@ public class UseCaseController {
             
             // Update use case status
             useCase.setStatus("STOPPED");
-            useCase.setLastRunAt(LocalDateTime.now());
+            useCase.setLastRunAt(Instant.now());
             repo.save(useCase);
             
             return ResponseEntity.ok(Map.of("message", "Test stopped", "useCaseId", id));

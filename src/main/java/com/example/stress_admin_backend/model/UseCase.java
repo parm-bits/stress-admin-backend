@@ -5,7 +5,7 @@ import lombok.*;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @Data
 @NoArgsConstructor
@@ -34,14 +34,14 @@ public class UseCase {
     @Schema(description = "URL to the last test execution report", example = "http://localhost:8080/reports/report_123.html")
     private String lastReportUrl;
     
-    @Schema(description = "Timestamp of the last test execution", example = "2024-01-15T10:30:00")
-    private LocalDateTime lastRunAt;
+    @Schema(description = "Timestamp of the last test execution", example = "2024-01-15T10:30:00Z")
+    private Instant lastRunAt;
     
-    @Schema(description = "Timestamp when the test started", example = "2024-01-15T10:30:00")
-    private LocalDateTime testStartedAt;
+    @Schema(description = "Timestamp when the test started", example = "2024-01-15T10:30:00Z")
+    private Instant testStartedAt;
     
-    @Schema(description = "Timestamp when the test completed", example = "2024-01-15T10:35:00")
-    private LocalDateTime testCompletedAt;
+    @Schema(description = "Timestamp when the test completed", example = "2024-01-15T10:35:00Z")
+    private Instant testCompletedAt;
     
     @Schema(description = "Duration of the last test execution in seconds", example = "300")
     private Long testDurationSeconds;
