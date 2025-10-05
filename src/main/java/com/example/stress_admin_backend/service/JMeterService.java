@@ -235,7 +235,7 @@ public class JMeterService {
             // Only remove from running processes if it wasn't manually stopped
             // The process will be removed by stopTest() if manually stopped
             if (uc.getStatus().equals("COMPLETED")) {
-                runningProcesses.remove(useCaseId);
+            runningProcesses.remove(useCaseId);
                 System.out.println("Test completed naturally, removed from running processes");
             }
 
@@ -285,7 +285,7 @@ public class JMeterService {
             
             // Only remove from running processes if it wasn't manually stopped
             if (uc.getStatus().equals("FAILED")) {
-                runningProcesses.remove(useCaseId);
+            runningProcesses.remove(useCaseId);
                 System.out.println("Test failed naturally, removed from running processes");
             }
         }
@@ -409,7 +409,7 @@ public class JMeterService {
                     
                     if (!terminated) {
                         System.out.println("Graceful shutdown failed, forcing termination...");
-                        process.destroyForcibly();
+                process.destroyForcibly();
                         
                         // Wait for forced termination
                         terminated = process.waitFor(5, TimeUnit.SECONDS);
@@ -420,6 +420,10 @@ public class JMeterService {
                     
                     runningProcesses.remove(useCaseId);
                     System.out.println("✅ JMeter test stopped successfully for use case: " + useCaseId);
+                    
+                    // Also try aggressive cleanup as backup
+                    System.out.println("🔄 Running aggressive cleanup as backup...");
+                    killJmeterProcessesByName(useCaseId);
                     
                     // Update use case status to STOPPED
                     Optional<UseCase> useCaseOpt = repo.findById(useCaseId);
@@ -455,15 +459,54 @@ public class JMeterService {
             System.out.println("❌ No running process found for use case: " + useCaseId);
             System.out.println("Available processes: " + runningProcesses.keySet());
             
-            // Try to find any JMeter processes running for this use case
-            try {
-                System.out.println("Attempting to find and kill JMeter processes by name...");
-                killJmeterProcessesByName(useCaseId);
-            } catch (Exception e) {
-                System.err.println("Error killing JMeter processes by name: " + e.getMessage());
+            // Always try to find and kill JMeter processes by name as fallback
+            System.out.println("🔄 Attempting fallback: Kill all JMeter processes...");
+            killJmeterProcessesByName(useCaseId);
+            
+            // Update use case status even if process not found in map
+            Optional<UseCase> useCaseOpt = repo.findById(useCaseId);
+            if (useCaseOpt.isPresent()) {
+                UseCase useCase = useCaseOpt.get();
+                useCase.setStatus("STOPPED");
+                useCase.setLastRunAt(LocalDateTime.now());
+                useCase.setTestCompletedAt(LocalDateTime.now());
+                
+                // Calculate test duration
+                if (useCase.getTestStartedAt() != null) {
+                    long actualDurationSeconds = java.time.Duration.between(useCase.getTestStartedAt(), useCase.getTestCompletedAt()).getSeconds();
+                    useCase.setTestDurationSeconds(actualDurationSeconds);
+                    System.out.println("Test stopped after: " + actualDurationSeconds + " seconds (" + formatDuration(actualDurationSeconds) + ")");
+                }
+                
+                repo.save(useCase);
+                System.out.println("✅ Use case status updated to STOPPED (fallback)");
             }
         }
         System.out.println("=== STOP TEST COMPLETE ===");
+        
+        // Final verification: Check if JMeter processes are still running
+        System.out.println("🔍 Final verification: Checking if JMeter processes are still running...");
+        boolean stillRunning = areJmeterProcessesRunning();
+        if (stillRunning) {
+            System.err.println("⚠️  WARNING: JMeter processes are still running after stop attempt!");
+            System.err.println("🔄 Attempting one more aggressive cleanup...");
+            killJmeterProcessesByName(useCaseId);
+            
+            // Wait a bit and check again
+            try {
+                Thread.sleep(2000);
+                stillRunning = areJmeterProcessesRunning();
+                if (stillRunning) {
+                    System.err.println("❌ CRITICAL: JMeter processes still running after aggressive cleanup!");
+                } else {
+                    System.out.println("✅ JMeter processes successfully terminated after aggressive cleanup");
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        } else {
+            System.out.println("✅ Confirmed: No JMeter processes are running");
+        }
     }
     
     /**
@@ -474,20 +517,125 @@ public class JMeterService {
             String os = System.getProperty("os.name").toLowerCase();
             
             if (os.contains("win")) {
-                // Windows: Use taskkill command
-                ProcessBuilder pb = new ProcessBuilder("taskkill", "/f", "/im", "java.exe");
-                Process killProcess = pb.start();
-                int exitCode = killProcess.waitFor();
-                System.out.println("Windows JMeter process kill result: " + exitCode);
+                // Windows: Multiple approaches to kill JMeter processes
+                System.out.println("Windows detected - using multiple kill methods...");
+                
+                // Method 1: Kill java.exe processes (JMeter runs as Java)
+                try {
+                    ProcessBuilder pb1 = new ProcessBuilder("taskkill", "/f", "/im", "java.exe");
+                    Process killProcess1 = pb1.start();
+                    int exitCode1 = killProcess1.waitFor();
+                    System.out.println("Method 1 - Kill java.exe result: " + exitCode1);
+                } catch (Exception e) {
+                    System.err.println("Method 1 failed: " + e.getMessage());
+                }
+                
+                // Method 2: Kill processes by command line containing "jmeter"
+                try {
+                    ProcessBuilder pb2 = new ProcessBuilder("wmic", "process", "where", "commandline like '%jmeter%'", "delete");
+                    Process killProcess2 = pb2.start();
+                    int exitCode2 = killProcess2.waitFor();
+                    System.out.println("Method 2 - Kill JMeter by commandline result: " + exitCode2);
+                } catch (Exception e) {
+                    System.err.println("Method 2 failed: " + e.getMessage());
+                }
+                
+                // Method 3: Kill processes by window title containing "JMeter"
+                try {
+                    ProcessBuilder pb3 = new ProcessBuilder("taskkill", "/f", "/fi", "WINDOWTITLE eq JMeter*");
+                    Process killProcess3 = pb3.start();
+                    int exitCode3 = killProcess3.waitFor();
+                    System.out.println("Method 3 - Kill JMeter by window title result: " + exitCode3);
+                } catch (Exception e) {
+                    System.err.println("Method 3 failed: " + e.getMessage());
+                }
+                
+                // Method 4: Use PowerShell to kill JMeter processes
+                try {
+                    String psCommand = "Get-Process | Where-Object {$_.ProcessName -eq 'java' -and $_.CommandLine -like '*jmeter*'} | Stop-Process -Force";
+                    ProcessBuilder pb4 = new ProcessBuilder("powershell", "-Command", psCommand);
+                    Process killProcess4 = pb4.start();
+                    int exitCode4 = killProcess4.waitFor();
+                    System.out.println("Method 4 - PowerShell kill result: " + exitCode4);
+                } catch (Exception e) {
+                    System.err.println("Method 4 failed: " + e.getMessage());
+                }
+                
             } else {
                 // Linux/Unix: Use pkill command
-                ProcessBuilder pb = new ProcessBuilder("pkill", "-f", "jmeter");
-                Process killProcess = pb.start();
-                int exitCode = killProcess.waitFor();
-                System.out.println("Linux JMeter process kill result: " + exitCode);
+                System.out.println("Linux/Unix detected - using pkill...");
+                try {
+                    ProcessBuilder pb = new ProcessBuilder("pkill", "-f", "jmeter");
+                    Process killProcess = pb.start();
+                    int exitCode = killProcess.waitFor();
+                    System.out.println("Linux JMeter process kill result: " + exitCode);
+                } catch (Exception e) {
+                    System.err.println("Linux kill failed: " + e.getMessage());
+                }
             }
         } catch (Exception e) {
             System.err.println("Error killing JMeter processes by name: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Check if JMeter processes are still running (for debugging)
+     */
+    public boolean areJmeterProcessesRunning() {
+        try {
+            String os = System.getProperty("os.name").toLowerCase();
+            
+            if (os.contains("win")) {
+                // Windows: Check for java.exe processes
+                ProcessBuilder pb = new ProcessBuilder("tasklist", "/fi", "imagename eq java.exe");
+                Process process = pb.start();
+                
+                StringBuilder output = new StringBuilder();
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        output.append(line).append("\n");
+                    }
+                }
+                
+                int exitCode = process.waitFor();
+                String outputStr = output.toString();
+                
+                // Count java.exe processes
+                int javaProcessCount = 0;
+                String[] lines = outputStr.split("\n");
+                for (String line : lines) {
+                    if (line.contains("java.exe")) {
+                        javaProcessCount++;
+                    }
+                }
+                
+                System.out.println("Windows - Found " + javaProcessCount + " java.exe processes");
+                return javaProcessCount > 0;
+                
+            } else {
+                // Linux/Unix: Check for JMeter processes
+                ProcessBuilder pb = new ProcessBuilder("pgrep", "-f", "jmeter");
+                Process process = pb.start();
+                
+                StringBuilder output = new StringBuilder();
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        output.append(line).append("\n");
+                    }
+                }
+                
+                int exitCode = process.waitFor();
+                String outputStr = output.toString().trim();
+                
+                boolean hasProcesses = !outputStr.isEmpty();
+                System.out.println("Linux/Unix - JMeter processes running: " + hasProcesses);
+                return hasProcesses;
+            }
+        } catch (Exception e) {
+            System.err.println("Error checking JMeter processes: " + e.getMessage());
+            return false;
         }
     }
 
