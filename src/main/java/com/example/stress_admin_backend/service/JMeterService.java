@@ -364,10 +364,29 @@ public class JMeterService {
                 ObjectMapper objectMapper = new ObjectMapper();
                 Map<String, Object> config = objectMapper.readValue(useCase.getThreadGroupConfig(), new TypeReference<Map<String, Object>>() {});
                 
-                if (config.containsKey("duration")) {
-                    int duration = Integer.parseInt(config.get("duration").toString());
-                    System.out.println("Extracted duration from Thread Group Configuration: " + duration + " seconds");
-                    return duration;
+                // Check if infinite loop is enabled
+                if (config.containsKey("infiniteLoop") && Boolean.parseBoolean(config.get("infiniteLoop").toString())) {
+                    System.out.println("Infinite loop detected - test will run until manually stopped");
+                    return Integer.MAX_VALUE; // Use max value for infinite duration
+                }
+                
+                // Check if specifyThreadLifetime is enabled and duration is set
+                if (config.containsKey("specifyThreadLifetime") && Boolean.parseBoolean(config.get("specifyThreadLifetime").toString())) {
+                    if (config.containsKey("duration")) {
+                        int duration = Integer.parseInt(config.get("duration").toString());
+                        System.out.println("Extracted duration from Thread Group Configuration: " + duration + " seconds");
+                        return duration;
+                    }
+                }
+                
+                // If specifyThreadLifetime is not enabled, check loop count for finite duration
+                if (config.containsKey("loopCount")) {
+                    int loopCount = Integer.parseInt(config.get("loopCount").toString());
+                    if (loopCount > 0) {
+                        System.out.println("Using loop count for duration calculation: " + loopCount + " loops");
+                        // Estimate duration based on loop count (this is approximate)
+                        return Math.max(300, loopCount * 10); // At least 5 minutes, or 10 seconds per loop
+                    }
                 }
             }
         } catch (Exception e) {

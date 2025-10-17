@@ -202,13 +202,42 @@ public class JmxModificationService {
             System.out.println("⏱️  APPLYING TIMING CONFIGURATION");
             System.out.println("========================================");
             
-            // Update duration from UI Thread Group config (overrides JMX file duration)
-            if (config.containsKey("duration")) {
-                String duration = config.get("duration").toString();
-                jmxContent = updateJmxProperty(jmxContent, "ThreadGroup.duration", duration);
-                System.out.println("⏱️  DURATION SET: " + duration + " seconds");
-                System.out.println("✅ ThreadGroup.duration property updated in JMX");
-                System.out.println("🎯 Effect: Test will run for exactly " + duration + " seconds then STOP");
+            // Handle infinite loop configuration
+            if (config.containsKey("infiniteLoop") && Boolean.parseBoolean(config.get("infiniteLoop").toString())) {
+                // For infinite loops, disable scheduler and set loop count to -1
+                jmxContent = updateJmxProperty(jmxContent, "ThreadGroup.scheduler", "false");
+                jmxContent = updateJmxProperty(jmxContent, "ThreadGroup.loops", "-1");
+                System.out.println("🔄 INFINITE LOOP ENABLED");
+                System.out.println("✅ ThreadGroup.scheduler set to false");
+                System.out.println("✅ ThreadGroup.loops set to -1 (infinite)");
+                System.out.println("🎯 Effect: Test will run indefinitely until manually stopped");
+            } else {
+                // Handle finite loop configuration
+                if (config.containsKey("loopCount")) {
+                    String loopCount = config.get("loopCount").toString();
+                    jmxContent = updateJmxProperty(jmxContent, "ThreadGroup.loops", loopCount);
+                    System.out.println("🔄 LOOP COUNT SET: " + loopCount);
+                    System.out.println("✅ ThreadGroup.loops property updated in JMX");
+                }
+                
+                // Handle duration configuration only if specifyThreadLifetime is enabled
+                if (config.containsKey("specifyThreadLifetime") && Boolean.parseBoolean(config.get("specifyThreadLifetime").toString())) {
+                    if (config.containsKey("duration")) {
+                        String duration = config.get("duration").toString();
+                        jmxContent = updateJmxProperty(jmxContent, "ThreadGroup.scheduler", "true");
+                        jmxContent = updateJmxProperty(jmxContent, "ThreadGroup.duration", duration);
+                        System.out.println("⏱️  DURATION SET: " + duration + " seconds");
+                        System.out.println("✅ ThreadGroup.scheduler set to true");
+                        System.out.println("✅ ThreadGroup.duration property updated in JMX");
+                        System.out.println("🎯 Effect: Test will run for exactly " + duration + " seconds then STOP");
+                    }
+                } else {
+                    // If specifyThreadLifetime is not enabled, disable scheduler
+                    jmxContent = updateJmxProperty(jmxContent, "ThreadGroup.scheduler", "false");
+                    System.out.println("⏱️  SCHEDULER DISABLED - Duration not specified");
+                    System.out.println("✅ ThreadGroup.scheduler set to false");
+                    System.out.println("🎯 Effect: Test will run based on loop count only");
+                }
             }
             
             // Update startup delay
